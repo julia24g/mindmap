@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "apollo-server": "^3.13.0",
+    "axios": "^1.9.0",
+    "dotenv": "^16.5.0",
+    "graphql": "^16.11.0",
+    "neo4j-driver": "^5.28.1",
+    "pg": "^8.16.0",
+    "reflect-metadata": "^0.2.2",
+    "type-graphql": "^2.0.0-rc.2"
+  }
+}
