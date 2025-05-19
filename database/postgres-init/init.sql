@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS events (
   userId UUID NOT NULL, -- what type should this be?
   title TEXT NOT NULL,
   type TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   properties JSONB
 );
 
