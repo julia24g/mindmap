@@ -1,5 +1,5 @@
 export const typeDefs = `#graphql
-    type Event {
+    type Content {
         id: ID!
         user: User!
         title: String!
@@ -11,8 +11,8 @@ export const typeDefs = `#graphql
         id: ID!
     }
     type Query {
-        events(user: User!): [Event]
-        event(id: ID!): Event
+        contents(user: User!): [Content]
+        content(id: ID!): Content
         users: [User]
         user(id: ID!): User
     }

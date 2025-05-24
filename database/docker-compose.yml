@@ -30,5 +30,3 @@ volumes:
   pg_data:
   neo4j_data:
   neo4j_logs:
-
-# Run this and make sure it actually works
