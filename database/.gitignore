@@ -1,3 +1,0 @@
-# Local env files
-.env
-.env.*   # e.g., .env.dev, .env.prod

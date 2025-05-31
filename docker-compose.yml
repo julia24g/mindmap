@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: pg-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./database/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql
+
+  neo4j:
+    image: neo4j:5
+    container_name: neo4j-db
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+    ports:
+      - "7474:7474"  # HTTP Browser
+      - "7687:7687"  # Bolt protocol
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+  
+  llm-service:
+    build:
+      context: ./backend/llm-tagging-service
+    container_name: llm-tagging-service
+    ports:
+      - "8000:8000"
+    depends_on:
+      - neo4j
+    environment:
+      - GRAPHQL_ENDPOINT=http://host.docker.internal:4000/graphql
+
+  graphql-server:
+    build:
+      context: ./backend/graphql-server
+    container_name: graphql-server
+    ports:
+      - "4000:4000"
+    depends_on:
+      - postgres
+      - neo4j
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+
+volumes:
+  pg_data:
+  neo4j_data:
+  neo4j_logs:

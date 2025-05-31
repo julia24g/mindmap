@@ -1,0 +1,9 @@
+fastapi
+pydantic
+transformers
+gql
+requests
+uvicorn
+pytest
+httpx
+pytest-asyncio
