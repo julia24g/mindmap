@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS contents (
 );
 
 CREATE TABLE IF NOT EXISTS users (
-    userId UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    userId UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    firstName TEXT NOT NULL,
 );
 
 /**

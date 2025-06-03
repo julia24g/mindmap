@@ -10,6 +10,9 @@ export const resolvers = {
     // Get all content information
     async content(_, { contentId }) {
       const result = await pgPool.query('SELECT * FROM contents WHERE contentId = $1', [contentId]);
+      if (result.rowCount === 0) {
+        throw new Error('Content not found');
+      }
       return result.rows[0];
     },
     // Get all nodes and edges in user knowledge graph
