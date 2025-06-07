@@ -2,24 +2,39 @@ export const typeDefs = `#graphql
     scalar DateTime
     scalar JSON
     type Content {
-        id: ID!
-        user: User!
+        contentId: ID!
+        userId: ID!
         title: String!
         type: String
         created_at: DateTime!
         properties: JSON
     }
     type User {
-        id: ID!
+        userId: ID!
+        firstName: String
     }
     type Tag {
-        id: ID!
         name: String!
+        popularity: Int
+    }
+    type Node {
+        id: ID!
+        label: String!
+        contentId: ID!
+    }
+    type Edge {
+        from: ID!
+        to: ID!
+        type: String!
+    }
+    type UserGraph {
+        nodes: [Node!]!
+        edges: [Edge!]!
     }
     type Query {
-        get_user_graph(userId: ID!): [Content]
-        content(id: ID!): Content
-        all_tags(): [Tag!]!
+        get_user_graph(userId: ID!): UserGraph
+        content(contentId: ID!): Content
+        get_all_tags: [Tag!]!
     }
     type Mutation {
         addContent(

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pgPool } from './db/postgres';
 import { neo4jDriver } from './db/neo4j';
+import { GraphQLError } from 'graphql';
 
 export const resolvers = {
   DateTime: GraphQLDateTime,
@@ -9,16 +10,21 @@ export const resolvers = {
   Query: {
     // Get all content information
     async content(_, { contentId }) {
-      const result = await pgPool.query('SELECT * FROM contents WHERE contentId = $1', [contentId]);
-      if (result.rowCount === 0) {
-        throw new Error('Content not found');
+      // Fetch content from Postgres
+      const result = await pgPool.query('SELECT * FROM contents WHERE contentid = $1', [contentId]);
+      if (!result.rows.length) {
+        throw new GraphQLError('Content not found');
       }
       return result.rows[0];
     },
     // Get all nodes and edges in user knowledge graph
     async get_user_graph(_, { userId }) {
+      // Check if user exists in Postgres
+      const userResult = await pgPool.query('SELECT 1 FROM users WHERE userId = $1', [userId]);
+      if (userResult.rowCount === 0) {
+        throw new GraphQLError('User not found');
+      }
       const session = neo4jDriver.session();
-
       try {
         const tag_to_content = await session.run(
           `
@@ -48,38 +54,41 @@ export const resolvers = {
           const content = record.get('c');
 
           if (tag && !nodesMap.has(`tag_${tag.identity}`)) {
-            nodesMap.set(`tag_${tag.identity}`, {
-              data: { id: `tag_${tag.identity}`, label: 'Tag', name: tag.properties.name }
-            });
+            nodesMap.set(`tag_${tag.identity}`,
+              {
+                id: `tag_${tag.identity}`,
+                label: 'Tag',
+                name: tag.properties.name
+              }
+            );
           }
 
           if (content && !nodesMap.has(`content_${content.identity}`)) {
-            nodesMap.set(`content_${content.identity}`, {
-              data: { id: `content_${content.identity}`, label: 'Content', title: content.properties.title }
-            });
+            nodesMap.set(`content_${content.identity}`,
+              {
+                id: `content_${content.identity}`,
+                label: 'Content',
+                title: content.properties.title
+              }
+            );
           }
 
           if (tag && content) {
             edges.push({
-              data: {
-                id: `edge_describes_${tag.identity}_${content.identity}`,
-                source: `tag_${tag.identity}`,
-                target: `content_${content.identity}`,
-                type: 'DESCRIBES'
-              }
+              from: `tag_${tag.identity}`,
+              to: `content_${content.identity}`,
+              type: 'DESCRIBES'
             });
           }
         });
 
-        const subtagRels = tag_to_tag.records[0].get("subtagRels");
+        // Safely handle empty tag_to_tag.records
+        const subtagRels = tag_to_tag.records[0]?.get("subtagRels") || [];
         subtagRels.forEach((rel: any) => {
           edges.push({
-            data: {
-              id: `subtag_${rel.identity}`,
-              source: `tag_${rel.start}`,
-              target: `tag_${rel.end}`,
-              type: 'HAS_SUBTAG'
-            }
+            from: `tag_${rel.start}`,
+            to: `tag_${rel.end}`,
+            type: 'HAS_SUBTAG'
           });
         });
 
