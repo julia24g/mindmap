@@ -95,50 +95,108 @@ describe('GraphQL Resolvers', () => {
   it('should return all relevant nodes and edges for a userId that exists', async () => {
     // Mock Postgres to return a user
     mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userId: '1', firstName: 'TestUser' }] });
+    
     // Mock Neo4j to return records for nodes and edges in the expected structure
     neo4jSessionMock.run
-      // First call: nodes (tags and content)
+      // First call: tag_to_content query
       .mockResolvedValueOnce({
         records: [
-          { get: (key: string) => key === 'n' ? { identity: 'tag1', properties: {} } : undefined },
-          { get: (key: string) => key === 'n' ? { identity: 'content1', properties: {} } : undefined }
+          { 
+            get: (key: string) => {
+              if (key === 't') {
+                return { 
+                  identity: 'tag1', 
+                  properties: { name: 'software engineering' }
+                };
+              } else if (key === 'c') {
+                return { 
+                  identity: 'content1', 
+                  properties: { title: 'Test Content' }
+                };
+              }
+              return undefined;
+            }
+          }
         ]
       })
-      // Second call: edges (relationships)
+      // Second call: tag_to_tag query
       .mockResolvedValueOnce({
         records: [
-          { get: (key: string) => key === 'r' ? { start: { toString: () => 'tag1' }, end: { toString: () => 'content1' }, type: 'TAGGED' } : undefined }
+          { 
+            get: (key: string) => {
+              if (key === 'subtagRels') {
+                return [
+                  { start: 'tag1', end: 'tag2' }
+                ];
+              }
+              return undefined;
+            }
+          }
         ]
       });
 
     const res = await server.executeOperation({
-      query: `query($userId: ID!) { get_user_graph(userId: $userId) { nodes { id } edges { from to } } }`,
+      query: `query($userId: ID!) { get_user_graph(userId: $userId) { nodes { id label contentId name } edges { from to type } } }`,
       variables: { userId: '1' }
     });
-    const errors = (res as any).body.singleResult.errors;
-    if (errors) {
-      console.log('GraphQL error:', errors[0].message);
-    }
+    
     const data = (res as any).body.singleResult.data;
     expect(data.get_user_graph).not.toBeNull();
     expect(Array.isArray(data.get_user_graph.nodes)).toBe(true);
     expect(data.get_user_graph.nodes.length).toBe(2);
     expect(Array.isArray(data.get_user_graph.edges)).toBe(true);
-    expect(data.get_user_graph.edges.length).toBe(1);
-    expect(data.get_user_graph.nodes.map((n: any) => n.id)).toEqual(expect.arrayContaining(['tag_tag1', 'content_content1']));
-    expect(data.get_user_graph.edges[0]).toMatchObject({ from: 'tag_tag1', to: 'content_content1' });
+    expect(data.get_user_graph.edges.length).toBe(2);
+    
+    // Check that we have the expected nodes
+    const nodeIds = data.get_user_graph.nodes.map((n: any) => n.id);
+    expect(nodeIds).toEqual(expect.arrayContaining(['tag_tag1', 'content_content1']));
+    
+    // Check that we have the expected edges
+    const edgeTypes = data.get_user_graph.edges.map((e: any) => e.type);
+    expect(edgeTypes).toEqual(expect.arrayContaining(['DESCRIBES', 'HAS_SUBTAG']));
+    
+    // Check node properties - content node should have contentId, tag node should have name
+    const tagNode = data.get_user_graph.nodes.find((n: any) => n.id === 'tag_tag1');
+    expect(tagNode).toMatchObject({ 
+      label: 'Tag',
+      name: 'software engineering',
+      contentId: null  // Tag nodes have no contentId
+    });
+    
+    const contentNode = data.get_user_graph.nodes.find((n: any) => n.id === 'content_content1');
+    expect(contentNode).toMatchObject({ 
+      label: 'Content',
+      contentId: 'content1',  // Content nodes have contentId
+      name: null  // Content nodes have no name
+    });
   });
 
   // Mutation - addContent
   it('should successfully add content and create tags/relationships in Neo4j when userId exists', async () => {
-    // Mock Postgres and Neo4j responses
+    // Mock Postgres responses for both queries
+    // First call: Check if user exists
     mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userId: '1' }] });
+    // Second call: Insert content and return the created content
+    mockPgQuery.mockResolvedValueOnce({ 
+      rowCount: 1, 
+      rows: [{ 
+        contentid: '1', 
+        title: 'New Content', 
+        userId: '1',
+        type: null,
+        created_at: new Date(),
+        properties: null
+      }] 
+    });
+    
+    // Mock Neo4j responses for tag operations
     neo4jSessionMock.run.mockResolvedValueOnce({ records: [{ get: () => '1' }] });
 
     const res = await server.executeOperation({
       query: `mutation($userId: ID!, $title: String!) { addContent(userId: $userId, title: $title) { contentId title } }`,
       variables: { userId: '1', title: 'New Content' }
     });
+    
     const data = (res as any).body.singleResult.data;
     expect(data.addContent.title).toBe('New Content');
     // Check Neo4j for created nodes and relationships
@@ -146,13 +204,16 @@ describe('GraphQL Resolvers', () => {
   });
 
   it('should throw an error if userId does not exist in Postgres', async () => {
+    // Mock the user check to return no user
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
     const res = await server.executeOperation({
       query: `mutation($userId: ID!, $title: String!) { addContent(userId: $userId, title: $title) { contentId title } }`,
       variables: { userId: 'nonexistent-user', title: 'New Content' }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
-    expect(errors?.[0].message).toMatch(/User not found/);
+    expect(errors?.[0].message).toMatch('User does not exist');
   });
 
   // Mutation - deleteContent
@@ -167,7 +228,23 @@ describe('GraphQL Resolvers', () => {
   });
 
   it('should delete the content from both Postgres and Neo4j and return true when contentId exists', async () => {
+    // First call: Check if content exists
     mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ contentId: '1' }] });
+    // Second call: Delete from Postgres
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    
+    // Mock Neo4j deletion with count
+    neo4jSessionMock.run.mockResolvedValueOnce({ 
+      records: [{ 
+        get: (key: string) => {
+          if (key === 'deleted') {
+            return { toNumber: () => 1 };
+          }
+          return undefined;
+        }
+      }] 
+    });
+
     const res = await server.executeOperation({
       query: `mutation($contentId: ID!) { deleteContent(contentId: $contentId) }`,
       variables: { contentId: '1' }

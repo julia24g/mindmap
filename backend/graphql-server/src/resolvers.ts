@@ -8,6 +8,7 @@ export const resolvers = {
   DateTime: GraphQLDateTime,
   JSON: GraphQLJSON,
   Query: {
+    // TODO: add user management queries
     // Get all content information
     async content(_, { contentId }) {
       // Fetch content from Postgres
@@ -68,7 +69,7 @@ export const resolvers = {
               {
                 id: `content_${content.identity}`,
                 label: 'Content',
-                title: content.properties.title
+                contentId: content.identity,
               }
             );
           }
@@ -114,6 +115,7 @@ export const resolvers = {
     }
   },
   Mutation: {
+    // TODO: add user management mutations
     // Add new content, generate tags using LLM, insert into Postgres and Neo4j
     async addContent(_, { userId, title, type, properties }) {
       // 0. Ensure user exists in Postgres users table
@@ -121,7 +123,7 @@ export const resolvers = {
         'SELECT 1 FROM users WHERE userId = $1', [userId]
       );
       if (userResult.rowCount === 0) {
-        throw new Error('User does not exist');
+        throw new GraphQLError('User does not exist');
       }
       // 1. Insert content into Postgres
       const insertResult = await pgPool.query(
@@ -141,6 +143,7 @@ export const resolvers = {
         tags = llmRes.data.suggested_tags;
       } catch (e) {
         console.error('LLM tag service error:', e);
+        // Continue without tags if LLM service fails
       }
 
       // 3. For each tag, update/create in Neo4j
@@ -149,8 +152,6 @@ export const resolvers = {
         for (const tagName of tags) {
           // Check if tag exists
           const tagRes = await session.run(
-            // Finds node with label Tag and name = tagName
-            // If it exists, increment popularity, otherwise create it
             `
             MERGE (t:Tag {name: $tagName})
             ON CREATE SET t.popularity = 1
@@ -162,7 +163,7 @@ export const resolvers = {
           // Create Content node
           await session.run(
             `
-            MERGE (c:Content {userId: $userId, contentId: $contentId})
+            MERGE (c:Content {userId: $userId, contentId: $contentId, title: $title})
             `,
             { userId, contentId, title }
           );
@@ -170,7 +171,7 @@ export const resolvers = {
           await session.run(
             `
             MATCH (t:Tag {name: $tagName}), (c:Content {userId: $userId, contentId: $contentId})
-            MERGE (t)-[:DESCRIBES]->(c)'
+            MERGE (t)-[:DESCRIBES]->(c)
             `,
             { tagName, userId, contentId }
           );
@@ -178,34 +179,47 @@ export const resolvers = {
       } finally {
         await session.close();
       }
-      return content;
+      // Map Postgres result to GraphQL Content type (camelCase)
+      return {
+        contentId: content.contentid,
+        userId: content.userid,
+        title: content.title,
+        type: content.type,
+        created_at: content.created_at,
+        properties: content.properties
+      };
     },
     // Delete content from both Postgres and Neo4j
     async deleteContent(_, { contentId }) {
-      // 1. Delete the content node and its relationships from Neo4j
+      // 1. Check if content exists in Postgres
+      const contentResult = await pgPool.query(
+        'SELECT 1 FROM contents WHERE contentId = $1', 
+        [contentId]
+      );
+      
+      if (contentResult.rowCount === 0) {
+        return false; // Content doesn't exist
+      }
+
+      // 2. Delete from Neo4j
       const session = neo4jDriver.session();
       try {
-        await session.run(
-          `
-          MATCH (c:Content {contentId: $contentId})
-          DETACH DELETE c
-          `,
+        const neo4jResult = await session.run(
+          `MATCH (c:Content {contentId: $contentId}) DETACH DELETE c RETURN count(c) as deleted`,
           { contentId }
         );
-      } catch (e) {
-        console.error('Neo4j delete error:', e);
-        return false;
+        const deletedCount = neo4jResult.records[0]?.get('deleted')?.toNumber() || 0;
+        
+        // 3. Delete from Postgres
+        const pgResult = await pgPool.query(
+          'DELETE FROM contents WHERE contentId = $1', 
+          [contentId]
+        );
+        
+        return pgResult.rowCount > 0 && deletedCount > 0;
       } finally {
         await session.close();
       }
-      // 2. Delete the content from Postgres
-      try {
-        await pgPool.query('DELETE FROM contents WHERE contentId = $1', [contentId]);
-      } catch (e) {
-        console.error('Postgres delete error:', e);
-        return false;
-      }
-      return true;
     }
   }
 };

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, validator
+from typing import List, Optional
 from transformers import pipeline
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
@@ -20,7 +20,13 @@ client = Client(transport=transport, fetch_schema_from_transport=False)
 # Defines expected input structure
 class TagInput(BaseModel):
     title: str
-    description: str
+    description: Optional[str] = ""
+    
+    @validator('title')
+    def validate_title(cls, v):
+        if not v or v.strip() == "":
+            raise ValueError("Title cannot be empty")
+        return v
 
 # Call to GraphQL to fetch existing tags
 def fetch_tags_from_graphql(limit=500) -> List[str]:
@@ -56,7 +62,8 @@ def suggest_tags(text: str, existing_tags: List[str]) -> List[str]:
 @app.post("/suggest-tags")
 async def suggest_tags_endpoint(event: TagInput):
     try:
-        context_text = f"{event.title}. {event.description}"
+        description = event.description or ""
+        context_text = f"{event.title}. {description}"
         existing_tags = fetch_tags_from_graphql()
         suggestions = suggest_tags(context_text, existing_tags)
         return {"suggested_tags": suggestions}

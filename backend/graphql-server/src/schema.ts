@@ -20,7 +20,8 @@ export const typeDefs = `#graphql
     type Node {
         id: ID!
         label: String!
-        contentId: ID!
+        contentId: ID # For content nodes only
+        name: String # For tag nodes only
     }
     type Edge {
         from: ID!
@@ -35,6 +36,7 @@ export const typeDefs = `#graphql
         get_user_graph(userId: ID!): UserGraph
         content(contentId: ID!): Content
         get_all_tags: [Tag!]!
+        # TODO: add user management queries
     }
     type Mutation {
         addContent(
@@ -46,5 +48,6 @@ export const typeDefs = `#graphql
         deleteContent(
             contentId: ID!
         ): Boolean
+        # TODO: add user management mutations
     }
 `
