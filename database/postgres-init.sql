@@ -10,6 +10,11 @@ CREATE TABLE IF NOT EXISTS contents (
 CREATE TABLE IF NOT EXISTS users (
     userId UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     firstName TEXT NOT NULL,
+    lastName TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    passwordHash TEXT NOT NULL,
+    createdAt TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updatedAt TIMESTAMPTZ DEFAULT NOW()
 );
 
 /**

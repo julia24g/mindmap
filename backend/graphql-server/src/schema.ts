@@ -11,7 +11,11 @@ export const typeDefs = `#graphql
     }
     type User {
         userId: ID!
-        firstName: String
+        firstName: String!
+        lastName: String!
+        email: String!
+        createdAt: DateTime!
+        updatedAt: DateTime
     }
     type Tag {
         name: String!
@@ -32,11 +36,19 @@ export const typeDefs = `#graphql
         nodes: [Node!]!
         edges: [Edge!]!
     }
+    type AuthResponse {
+        user: User!
+        token: String!
+    }
     type Query {
         get_user_graph(userId: ID!): UserGraph
         content(contentId: ID!): Content
         get_all_tags: [Tag!]!
-        # TODO: add user management queries
+        # User management queries
+        getUser(userId: ID!): User
+        getUserByEmail(email: String!): User
+        getAllUsers: [User!]!
+        login(email: String!, password: String!): AuthResponse
     }
     type Mutation {
         addContent(
@@ -48,6 +60,24 @@ export const typeDefs = `#graphql
         deleteContent(
             contentId: ID!
         ): Boolean
-        # TODO: add user management mutations
+        # User management mutations
+        createUser(
+            firstName: String!
+            lastName: String!
+            email: String!
+            password: String!
+        ): AuthResponse
+        updateUser(
+            userId: ID!
+            firstName: String
+            lastName: String
+            email: String
+        ): User
+        deleteUser(userId: ID!): Boolean
+        changePassword(
+            userId: ID!
+            currentPassword: String!
+            newPassword: String!
+        ): Boolean
     }
 `

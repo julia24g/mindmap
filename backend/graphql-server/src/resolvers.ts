@@ -3,12 +3,79 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pgPool } from './db/postgres';
 import { neo4jDriver } from './db/neo4j';
 import { GraphQLError } from 'graphql';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { requireAuth, AuthContext } from './auth';
+
+// JWT secret - in production, this should be in environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export const resolvers = {
   DateTime: GraphQLDateTime,
   JSON: GraphQLJSON,
   Query: {
-    // TODO: add user management queries
+    // User management queries
+    async getUser(_, { userId }, context: AuthContext) {
+      requireAuth(context);
+      const result = await pgPool.query(
+        'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users WHERE userId = $1',
+        [userId]
+      );
+      if (!result.rows.length) {
+        throw new GraphQLError('User not found');
+      }
+      return result.rows[0];
+    },
+    async getUserByEmail(_, { email }) {
+      const result = await pgPool.query(
+        'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users WHERE email = $1',
+        [email]
+      );
+      if (!result.rows.length) {
+        throw new GraphQLError('User not found');
+      }
+      return result.rows[0];
+    },
+    async getAllUsers() {
+      const result = await pgPool.query(
+        'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users ORDER BY createdAt DESC'
+      );
+      return result.rows;
+    },
+    async login(_, { email, password }) {
+      // Get user with password hash
+      const result = await pgPool.query(
+        'SELECT userId, firstName, lastName, email, passwordHash, createdAt, updatedAt FROM users WHERE email = $1',
+        [email]
+      );
+      
+      if (!result.rows.length) {
+        throw new GraphQLError('Invalid email or password');
+      }
+      
+      const user = result.rows[0];
+      
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.passwordhash);
+      if (!isValidPassword) {
+        throw new GraphQLError('Invalid email or password');
+      }
+      
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId: user.userid, email: user.email },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      // Remove password hash from response
+      const { passwordhash, ...userWithoutPassword } = user;
+      
+      return {
+        user: userWithoutPassword,
+        token
+      };
+    },
     // Get all content information
     async content(_, { contentId }) {
       // Fetch content from Postgres
@@ -115,7 +182,175 @@ export const resolvers = {
     }
   },
   Mutation: {
-    // TODO: add user management mutations
+    // User management mutations
+    async createUser(_, { firstName, lastName, email, password }) {
+      // Check if user already exists
+      const existingUser = await pgPool.query(
+        'SELECT 1 FROM users WHERE email = $1',
+        [email]
+      );
+      
+      if (existingUser.rowCount > 0) {
+        throw new GraphQLError('User with this email already exists');
+      }
+      
+      // Hash password
+      const saltRounds = 10;
+      const passwordHash = await bcrypt.hash(password, saltRounds);
+      
+      // Insert new user
+      const result = await pgPool.query(
+        'INSERT INTO users (firstName, lastName, email, passwordHash) VALUES ($1, $2, $3, $4) RETURNING userId, firstName, lastName, email, createdAt, updatedAt',
+        [firstName, lastName, email, passwordHash]
+      );
+      
+      const user = result.rows[0];
+      
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId: user.userid, email: user.email },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      return {
+        user,
+        token
+      };
+    },
+    async updateUser(_, { userId, firstName, lastName, email }, context: AuthContext) {
+      requireAuth(context);
+      
+      // Check if user exists
+      const existingUser = await pgPool.query(
+        'SELECT 1 FROM users WHERE userId = $1',
+        [userId]
+      );
+      
+      if (existingUser.rowCount === 0) {
+        throw new GraphQLError('User not found');
+      }
+      
+      // Check if email is being changed and if it's already taken
+      if (email) {
+        const emailCheck = await pgPool.query(
+          'SELECT 1 FROM users WHERE email = $1 AND userId != $2',
+          [email, userId]
+        );
+        
+        if (emailCheck.rowCount > 0) {
+          throw new GraphQLError('Email is already taken by another user');
+        }
+      }
+      
+      // Build update query dynamically
+      const updates = [];
+      const values = [];
+      let paramCount = 1;
+      
+      if (firstName !== undefined) {
+        updates.push(`firstName = $${paramCount}`);
+        values.push(firstName);
+        paramCount++;
+      }
+      
+      if (lastName !== undefined) {
+        updates.push(`lastName = $${paramCount}`);
+        values.push(lastName);
+        paramCount++;
+      }
+      
+      if (email !== undefined) {
+        updates.push(`email = $${paramCount}`);
+        values.push(email);
+        paramCount++;
+      }
+      
+      updates.push(`updatedAt = NOW()`);
+      values.push(userId);
+      
+      const updateQuery = `
+        UPDATE users 
+        SET ${updates.join(', ')} 
+        WHERE userId = $${paramCount}
+        RETURNING userId, firstName, lastName, email, createdAt, updatedAt
+      `;
+      
+      const result = await pgPool.query(updateQuery, values);
+      
+      return result.rows[0];
+    },
+    async deleteUser(_, { userId }, context: AuthContext) {
+      requireAuth(context);
+      
+      // Check if user exists
+      const existingUser = await pgPool.query(
+        'SELECT 1 FROM users WHERE userId = $1',
+        [userId]
+      );
+      
+      if (existingUser.rowCount === 0) {
+        return false;
+      }
+      
+      // Delete user's content from Neo4j
+      const session = neo4jDriver.session();
+      try {
+        await session.run(
+          'MATCH (c:Content {userId: $userId}) DETACH DELETE c',
+          { userId }
+        );
+      } finally {
+        await session.close();
+      }
+      
+      // Delete user's content from Postgres
+      await pgPool.query(
+        'DELETE FROM contents WHERE userId = $1',
+        [userId]
+      );
+      
+      // Delete user from Postgres
+      const result = await pgPool.query(
+        'DELETE FROM users WHERE userId = $1',
+        [userId]
+      );
+      
+      return result.rowCount > 0;
+    },
+    async changePassword(_, { userId, currentPassword, newPassword }, context: AuthContext) {
+      requireAuth(context);
+      
+      // Get user with password hash
+      const result = await pgPool.query(
+        'SELECT passwordHash FROM users WHERE userId = $1',
+        [userId]
+      );
+      
+      if (!result.rows.length) {
+        throw new GraphQLError('User not found');
+      }
+      
+      const user = result.rows[0];
+      
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, user.passwordhash);
+      if (!isValidPassword) {
+        throw new GraphQLError('Current password is incorrect');
+      }
+      
+      // Hash new password
+      const saltRounds = 10;
+      const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+      
+      // Update password
+      await pgPool.query(
+        'UPDATE users SET passwordHash = $1, updatedAt = NOW() WHERE userId = $2',
+        [newPasswordHash, userId]
+      );
+      
+      return true;
+    },
     // Add new content, generate tags using LLM, insert into Postgres and Neo4j
     async addContent(_, { userId, title, type, properties }) {
       // 0. Ensure user exists in Postgres users table
