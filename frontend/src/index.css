@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-notion-bg text-notion-text;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-notion-primary text-white px-4 py-2 rounded-notion font-medium hover:bg-blue-600 transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply bg-notion-surface text-notion-text px-4 py-2 rounded-notion font-medium hover:bg-notion-hover transition-colors duration-200 border border-notion-border;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-2 border border-notion-border rounded-notion bg-white focus:outline-none focus:ring-2 focus:ring-notion-primary focus:border-transparent;
+  }
+  
+  .card {
+    @apply bg-white rounded-notion shadow-notion border border-notion-border;
+  }
+} 

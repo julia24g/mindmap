@@ -34,14 +34,44 @@ mindmap/
 ├── database/
 │   └── postgres-init.sql        # PostgreSQL initialization script
 │
-├── frontend/                    # React frontend (to be implemented)
+├── frontend/                    # React frontend application
+│   ├── src/
+│   │   ├── components/         # Reusable UI components
+│   │   │   ├── auth/          # Authentication components
+│   │   │   └── layout/        # Layout components
+│   │   ├── pages/             # Page components
+│   │   │   ├── LoginPage.tsx  # Login form
+│   │   │   ├── SignupPage.tsx # Signup form
+│   │   │   └── DashboardPage.tsx # Main dashboard
+│   │   ├── hooks/             # Custom React hooks
+│   │   │   └── useAuth.ts     # Authentication hook
+│   │   ├── services/          # API services
+│   │   │   └── graphql.ts     # Apollo Client setup
+│   │   ├── types/             # TypeScript definitions
+│   │   │   └── index.ts       # Type definitions
+│   │   ├── App.tsx            # Main app component
+│   │   ├── main.tsx           # React entry point
+│   │   └── index.css          # Tailwind CSS styles
+│   ├── package.json           # Frontend dependencies
+│   ├── vite.config.ts         # Vite configuration
+│   ├── tailwind.config.js     # Tailwind CSS config
+│   ├── tsconfig.json          # TypeScript config
+│   └── README.md              # Frontend documentation
 │
-├── docker-compose.yml           # Multi-service container orchestration
+├── docker-compose.yml          # Multi-service container orchestration
 ├── .env.example                 # Environment variables template
 └── README.md                    # This file
 ```
 
 ## 🚀 Features
+
+### Frontend Application
+- **React 18** with TypeScript and Vite
+- **UI** with Tailwind CSS
+- **Authentication system** with JWT tokens
+- **GraphQL integration** with Apollo Client
+- **Responsive design** for all devices
+- **Protected routes** and user management
 
 ### Backend Services
 - **GraphQL API Server** (Node.js/TypeScript)
@@ -88,12 +118,20 @@ mindmap/
    # Edit .env with your configuration
    ```
 
-3. **Start all services**
+3. **Start backend services**
    ```bash
    docker-compose --env-file .env up -d --build
    ```
 
-4. **Access the services**
+4. **Start frontend development server**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+5. **Access the services**
+   - Frontend: http://localhost:3000
    - GraphQL API: http://localhost:4000/graphql
    - Neo4j Browser: http://localhost:7474
    - PostgreSQL: localhost:5432
@@ -101,7 +139,7 @@ mindmap/
 
 ### Development Setup
 
-1. **Install dependencies**
+1. **Install backend dependencies**
    ```bash
    cd backend/graphql-server
    npm install
@@ -110,14 +148,23 @@ mindmap/
    pip install -r requirements.txt
    ```
 
-2. **Run tests**
+2. **Install frontend dependencies**
    ```bash
-   # Unit tests
+   cd frontend
+   npm install
+   ```
+
+3. **Run backend tests**
+   ```bash
    cd backend/graphql-server
    npm test
-   
-   # Integration tests
    npm run test:integration
+   ```
+
+4. **Run frontend development server**
+   ```bash
+   cd frontend
+   npm run dev
    ```
 
 ## 📊 API Documentation
@@ -178,6 +225,15 @@ docker-compose --env-file .env down -v
 - Password hashing with bcrypt
 - Input validation and sanitization
 
----
+## 🎨 Frontend Features
 
-**Note**: This is a work in progress. The frontend React application is planned for future development.
+### Pages
+- **Login Page**: Clean authentication form with error handling
+- **Signup Page**: User registration with password confirmation
+- **Dashboard**: Main application with user info and content management
+
+### Authentication
+- **JWT Token Management**: Secure token storage and automatic inclusion
+- **Protected Routes**: Automatic redirection for unauthenticated users
+- **User Session**: Persistent login state across browser sessions
+

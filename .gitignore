@@ -179,12 +179,15 @@ test-results.xml
 dist/
 build/
 out/
+dist-ssr/
+*.local
 
 # Cache directories
 .cache/
 .parcel-cache/
 .next/
 .nuxt/
+.vite/
 
 # IDE and Editor files
 .vscode/
