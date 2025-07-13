@@ -15,7 +15,6 @@ import { AuthContext } from '../src/auth';
 
 const mockPgQuery = pgPool.query as jest.Mock;
 
-// Mocking the modules
 jest.mock('pg');
 jest.mock('neo4j-driver');
 
@@ -828,6 +827,301 @@ describe('GraphQL Resolvers', () => {
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
       expect(errors?.[0].message).toMatch('Authentication required');
+    });
+  });
+
+  // Query - getContentByTag
+  describe('Content by Tag Queries', () => {
+    it('should return all content for a specific tag when user and tag exist', async () => {
+      // Mock user exists
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
+      
+      // Mock Neo4j to return content IDs for the tag
+      neo4jSessionMock.run.mockResolvedValueOnce({
+        records: [
+          { get: () => 'content-1' },
+          { get: () => 'content-2' }
+        ]
+      });
+      
+      // Mock Postgres to return content details
+      mockPgQuery.mockResolvedValueOnce({
+        rowCount: 2,
+        rows: [
+          {
+            contentid: 'content-1',
+            userid: 'user-123',
+            title: 'First Article',
+            type: 'article',
+            created_at: new Date(),
+            properties: { description: 'First article about software engineering' }
+          },
+          {
+            contentid: 'content-2',
+            userid: 'user-123',
+            title: 'Second Article',
+            type: 'article',
+            created_at: new Date(),
+            properties: { description: 'Second article about software engineering' }
+          }
+        ]
+      });
+
+      const res = await server.executeOperation({
+        query: `query($userId: ID!, $tagName: String!) { 
+          getContentByTag(userId: $userId, tagName: $tagName) { 
+            contentId title type properties 
+          } 
+        }`,
+        variables: { 
+          userId: 'user-123',
+          tagName: 'software engineering'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.getContentByTag).toHaveLength(2);
+      expect(data.getContentByTag[0]).toMatchObject({
+        contentId: 'content-1',
+        title: 'First Article',
+        type: 'article'
+      });
+      expect(data.getContentByTag[1]).toMatchObject({
+        contentId: 'content-2',
+        title: 'Second Article',
+        type: 'article'
+      });
+    });
+
+    it('should return empty array when tag has no content', async () => {
+      // Mock user exists
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
+      
+      // Mock Neo4j to return no content for the tag
+      neo4jSessionMock.run.mockResolvedValueOnce({
+        records: []
+      });
+
+      const res = await server.executeOperation({
+        query: `query($userId: ID!, $tagName: String!) { 
+          getContentByTag(userId: $userId, tagName: $tagName) { 
+            contentId title 
+          } 
+        }`,
+        variables: { 
+          userId: 'user-123',
+          tagName: 'nonexistent-tag'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.getContentByTag).toHaveLength(0);
+    });
+
+    it('should return error when user does not exist', async () => {
+      // Mock user doesn't exist
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const res = await server.executeOperation({
+        query: `query($userId: ID!, $tagName: String!) { 
+          getContentByTag(userId: $userId, tagName: $tagName) { 
+            contentId title 
+          } 
+        }`,
+        variables: { 
+          userId: 'nonexistent-user',
+          tagName: 'software engineering'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const errors = (res as any).body?.singleResult?.errors;
+      expect(errors).toBeDefined();
+      expect(errors?.[0].message).toMatch('User not found');
+    });
+
+    it('should return empty array when tag does not exist', async () => {
+      // Mock user exists
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
+      
+      // Mock Neo4j to return no content for the non-existent tag
+      neo4jSessionMock.run.mockResolvedValueOnce({
+        records: []
+      });
+
+      const res = await server.executeOperation({
+        query: `query($userId: ID!, $tagName: String!) { 
+          getContentByTag(userId: $userId, tagName: $tagName) { 
+            contentId title 
+          } 
+        }`,
+        variables: { 
+          userId: 'user-123',
+          tagName: 'nonexistent-tag'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.getContentByTag).toHaveLength(0);
+    });
+  });
+
+  // Mutation - updateContent
+  describe('Content Updates', () => {
+    it('should successfully update content title', async () => {
+      const mockContent = {
+        contentid: 'content-1',
+        userid: 'user-123',
+        title: 'Original Title',
+        type: 'article',
+        created_at: new Date(),
+        properties: { description: 'Original description' }
+      };
+      
+      // Mock content exists
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockContent] });
+      
+      // Mock update successful
+      mockPgQuery.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          ...mockContent,
+          title: 'Updated Title'
+        }]
+      });
+
+      const res = await server.executeOperation({
+        query: `mutation($contentId: ID!, $title: String) { 
+          updateContent(contentId: $contentId, title: $title) { 
+            contentId title type properties 
+          } 
+        }`,
+        variables: { 
+          contentId: 'content-1',
+          title: 'Updated Title'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.updateContent).toMatchObject({
+        contentId: 'content-1',
+        title: 'Updated Title',
+        type: 'article'
+      });
+    });
+
+    it('should successfully update content type and properties', async () => {
+      const mockContent = {
+        contentid: 'content-1',
+        userid: 'user-123',
+        title: 'Test Content',
+        type: 'article',
+        created_at: new Date(),
+        properties: { description: 'Original description' }
+      };
+      
+      // Mock content exists
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockContent] });
+      
+      // Mock update successful
+      mockPgQuery.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          ...mockContent,
+          type: 'tutorial',
+          properties: { description: 'Updated description', difficulty: 'intermediate' }
+        }]
+      });
+
+      const res = await server.executeOperation({
+        query: `mutation($contentId: ID!, $type: String, $properties: JSON) { 
+          updateContent(contentId: $contentId, type: $type, properties: $properties) { 
+            contentId title type properties 
+          } 
+        }`,
+        variables: { 
+          contentId: 'content-1',
+          type: 'tutorial',
+          properties: { description: 'Updated description', difficulty: 'intermediate' }
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.updateContent).toMatchObject({
+        contentId: 'content-1',
+        title: 'Test Content',
+        type: 'tutorial',
+        properties: { description: 'Updated description', difficulty: 'intermediate' }
+      });
+    });
+
+    it('should return existing content when no updates provided', async () => {
+      const mockContent = {
+        contentid: 'content-1',
+        userid: 'user-123',
+        title: 'Test Content',
+        type: 'article',
+        created_at: new Date(),
+        properties: { description: 'Test description' }
+      };
+      
+      // Mock content exists
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockContent] });
+
+      const res = await server.executeOperation({
+        query: `mutation($contentId: ID!) { 
+          updateContent(contentId: $contentId) { 
+            contentId title type properties 
+          } 
+        }`,
+        variables: { 
+          contentId: 'content-1'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.updateContent).toMatchObject({
+        contentId: 'content-1',
+        title: 'Test Content',
+        type: 'article',
+        properties: { description: 'Test description' }
+      });
+    });
+
+    it('should return error when content does not exist', async () => {
+      // Mock content doesn't exist
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const res = await server.executeOperation({
+        query: `mutation($contentId: ID!, $title: String) { 
+          updateContent(contentId: $contentId, title: $title) { 
+            contentId title 
+          } 
+        }`,
+        variables: { 
+          contentId: 'nonexistent-content',
+          title: 'Updated Title'
+        }
+      }, {
+        contextValue: { isAuthenticated: false }
+      });
+      
+      const errors = (res as any).body?.singleResult?.errors;
+      expect(errors).toBeDefined();
+      expect(errors?.[0].message).toMatch('Content not found');
     });
   });
 });

@@ -44,6 +44,7 @@ export const typeDefs = `#graphql
         get_user_graph(userId: ID!): UserGraph
         content(contentId: ID!): Content
         get_all_tags: [Tag!]!
+        getContentByTag(userId: ID!, tagName: String!): [Content!]!
         # User management queries
         getUser(userId: ID!): User
         getUserByEmail(email: String!): User
@@ -53,6 +54,12 @@ export const typeDefs = `#graphql
         addContent(
             userId: ID!
             title: String!
+            type: String
+            properties: JSON
+        ): Content
+        updateContent(
+            contentId: ID!
+            title: String
             type: String
             properties: JSON
         ): Content

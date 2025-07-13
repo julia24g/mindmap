@@ -6,7 +6,7 @@ import { GraphQLError } from 'graphql';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { requireAuth, AuthContext } from './auth';
-import { mapUserFromPostgres, mapUsersFromPostgres } from './utils';
+import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils';
 
 // JWT secret - in production, this should be in environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -53,7 +53,7 @@ export const resolvers = {
       if (!result.rows.length) {
         throw new GraphQLError('Content not found');
       }
-      return result.rows[0];
+      return mapContentFromPostgres(result.rows[0]);
     },
     // Get all nodes and edges in user knowledge graph
     async get_user_graph(_, { userId }) {
@@ -146,6 +146,44 @@ export const resolvers = {
           'MATCH (t:Tag) RETURN t.name AS name ORDER BY t.popularity'
         );
         return result.records.map(record => record.get('name'));
+      } finally {
+        await session.close();
+      }
+    },
+    // Get all content for a specific tag
+    async getContentByTag(_, { userId, tagName }) {
+      // Check if user exists in Postgres
+      const userResult = await pgPool.query('SELECT 1 FROM users WHERE userId = $1', [userId]);
+      if (userResult.rowCount === 0) {
+        throw new GraphQLError('User not found');
+      }
+
+      const session = neo4jDriver.session();
+      try {
+        // Find all content nodes connected to the specified tag
+        const result = await session.run(
+          `
+          MATCH (t:Tag {name: $tagName})-[:DESCRIBES]->(c:Content {userId: $userId})
+          RETURN c.contentId AS contentId
+          `,
+          { tagName, userId }
+        );
+
+        if (result.records.length === 0) {
+          return [];
+        }
+
+        // Get content IDs from Neo4j results
+        const contentIds = result.records.map(record => record.get('contentId'));
+
+        // Fetch content details from Postgres
+        const placeholders = contentIds.map((_, index) => `$${index + 1}`).join(',');
+        const contentResult = await pgPool.query(
+          `SELECT * FROM contents WHERE contentid = ANY($1) AND userid = $2`,
+          [contentIds, userId]
+        );
+
+        return contentResult.rows.map(mapContentFromPostgres);
       } finally {
         await session.close();
       }
@@ -419,29 +457,75 @@ export const resolvers = {
       } finally {
         await session.close();
       }
-      // Map Postgres result to GraphQL Content type (camelCase)
-      return {
-        contentId: content.contentid,
-        userId: content.userid,
-        title: content.title,
-        type: content.type,
-        created_at: content.created_at,
-        properties: content.properties
-      };
+      return mapContentFromPostgres(content);
+    },
+    // Update existing content
+    async updateContent(_, { contentId, title, type, properties }) {
+      // Check if content exists in Postgres
+      const contentResult = await pgPool.query(
+        'SELECT * FROM contents WHERE contentid = $1', 
+        [contentId]
+      );
+      
+      if (contentResult.rowCount === 0) {
+        throw new GraphQLError('Content not found');
+      }
+
+      const existingContent = contentResult.rows[0];
+
+      // Build update query dynamically
+      const updates = [];
+      const values = [];
+      let paramCount = 1;
+      
+      if (title !== undefined) {
+        updates.push(`title = $${paramCount}`);
+        values.push(title);
+        paramCount++;
+      }
+      
+      if (type !== undefined) {
+        updates.push(`type = $${paramCount}`);
+        values.push(type);
+        paramCount++;
+      }
+      
+      if (properties !== undefined) {
+        updates.push(`properties = $${paramCount}`);
+        values.push(properties);
+        paramCount++;
+      }
+      
+      if (updates.length === 0) {
+        // No updates provided, return existing content
+        return mapContentFromPostgres(existingContent);
+      }
+      
+      values.push(contentId);
+      
+      const updateQuery = `
+        UPDATE contents 
+        SET ${updates.join(', ')} 
+        WHERE contentid = $${paramCount}
+        RETURNING *
+      `;
+      
+      const result = await pgPool.query(updateQuery, values);
+      const updatedContent = result.rows[0];
+      
+      return mapContentFromPostgres(updatedContent);
     },
     // Delete content from both Postgres and Neo4j
     async deleteContent(_, { contentId }) {
-      // 1. Check if content exists in Postgres
       const contentResult = await pgPool.query(
         'SELECT 1 FROM contents WHERE contentId = $1', 
         [contentId]
       );
       
       if (contentResult.rowCount === 0) {
-        return false; // Content doesn't exist
+        return false;
       }
 
-      // 2. Delete from Neo4j
       const session = neo4jDriver.session();
       try {
         const neo4jResult = await session.run(
@@ -450,7 +534,6 @@ export const resolvers = {
         );
         const deletedCount = neo4jResult.records[0]?.get('deleted')?.toNumber() || 0;
         
-        // 3. Delete from Postgres
         const pgResult = await pgPool.query(
           'DELETE FROM contents WHERE contentId = $1', 
           [contentId]
