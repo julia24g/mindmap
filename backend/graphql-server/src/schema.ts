@@ -48,7 +48,6 @@ export const typeDefs = `#graphql
         getUser(userId: ID!): User
         getUserByEmail(email: String!): User
         getAllUsers: [User!]!
-        login(email: String!, password: String!): AuthResponse
     }
     type Mutation {
         addContent(
@@ -61,6 +60,7 @@ export const typeDefs = `#graphql
             contentId: ID!
         ): Boolean
         # User management mutations
+        login(email: String!, password: String!): AuthResponse
         createUser(
             firstName: String!
             lastName: String!

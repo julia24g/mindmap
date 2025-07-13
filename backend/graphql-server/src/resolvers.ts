@@ -6,6 +6,7 @@ import { GraphQLError } from 'graphql';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { requireAuth, AuthContext } from './auth';
+import { mapUserFromPostgres, mapUsersFromPostgres } from './utils';
 
 // JWT secret - in production, this should be in environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -24,7 +25,8 @@ export const resolvers = {
       if (!result.rows.length) {
         throw new GraphQLError('User not found');
       }
-      return result.rows[0];
+      const user = result.rows[0];
+      return mapUserFromPostgres(user);
     },
     async getUserByEmail(_, { email }) {
       const result = await pgPool.query(
@@ -34,47 +36,15 @@ export const resolvers = {
       if (!result.rows.length) {
         throw new GraphQLError('User not found');
       }
-      return result.rows[0];
+      const user = result.rows[0];
+      return mapUserFromPostgres(user);
     },
     async getAllUsers() {
       const result = await pgPool.query(
         'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users ORDER BY createdAt DESC'
       );
-      return result.rows;
-    },
-    async login(_, { email, password }) {
-      // Get user with password hash
-      const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, passwordHash, createdAt, updatedAt FROM users WHERE email = $1',
-        [email]
-      );
       
-      if (!result.rows.length) {
-        throw new GraphQLError('Invalid email or password');
-      }
-      
-      const user = result.rows[0];
-      
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.passwordhash);
-      if (!isValidPassword) {
-        throw new GraphQLError('Invalid email or password');
-      }
-      
-      // Generate JWT token
-      const token = jwt.sign(
-        { userId: user.userid, email: user.email },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-      
-      // Remove password hash from response
-      const { passwordhash, ...userWithoutPassword } = user;
-      
-      return {
-        user: userWithoutPassword,
-        token
-      };
+      return mapUsersFromPostgres(result.rows);
     },
     // Get all content information
     async content(_, { contentId }) {
@@ -183,6 +153,39 @@ export const resolvers = {
   },
   Mutation: {
     // User management mutations
+    async login(_, { email, password }) {
+      // Get user with password hash
+      const result = await pgPool.query(
+        'SELECT userId, firstName, lastName, email, passwordHash, createdAt, updatedAt FROM users WHERE email = $1',
+        [email]
+      );
+      
+      if (!result.rows.length) {
+        throw new GraphQLError('Invalid email or password');
+      }
+      
+      const user = result.rows[0];
+      
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.passwordhash);
+      if (!isValidPassword) {
+        throw new GraphQLError('Invalid email or password');
+      }
+      
+      const token = jwt.sign(
+        { userId: user.userid, email: user.email },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      // Remove password hash from response and map column names
+      const { passwordhash, ...userWithoutPassword } = user;
+      const mappedUser = mapUserFromPostgres(userWithoutPassword);
+      return {
+        user: mappedUser,
+        token
+      };
+    },
     async createUser(_, { firstName, lastName, email, password }) {
       // Check if user already exists
       const existingUser = await pgPool.query(
@@ -205,16 +208,15 @@ export const resolvers = {
       );
       
       const user = result.rows[0];
-      
+      const mappedUser = mapUserFromPostgres(user);
       // Generate JWT token
       const token = jwt.sign(
         { userId: user.userid, email: user.email },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
-      
       return {
-        user,
+        user: mappedUser,
         token
       };
     },
@@ -278,7 +280,10 @@ export const resolvers = {
       
       const result = await pgPool.query(updateQuery, values);
       
-      return result.rows[0];
+      const user = result.rows[0];
+      
+      // Map PostgreSQL column names to GraphQL field names
+      return mapUserFromPostgres(user);
     },
     async deleteUser(_, { userId }, context: AuthContext) {
       requireAuth(context);

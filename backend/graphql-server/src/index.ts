@@ -6,7 +6,6 @@ import { typeDefs } from './schema'
 import { resolvers } from './resolvers'
 import { getAuthContext, AuthContext } from './auth'
 
-// server setup
 const server = new ApolloServer({
     typeDefs,
     resolvers,
