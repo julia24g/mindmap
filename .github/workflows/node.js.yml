@@ -80,37 +80,31 @@ jobs:
       run:
         working-directory: backend/graphql-server
     needs: build
-    env:
-      # point docker client at the DinD service
-      DOCKER_HOST: tcp://localhost:2375
-      # disable TLS for the DinD service (recommended for GitHub Actions DinD)
-      DOCKER_TLS_CERTDIR: ""
-
-    services:
-      docker:
-        image: docker:24-dind
-        options: --privileged
-        env:
-          DOCKER_TLS_CERTDIR: ""
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Docker (install & start)
+        uses: docker/setup-docker-action@v4
+        with:
+          # expose the Docker API over TCP so Testcontainers can connect if needed
+          tcp-port: 2375
+          # have the action set DOCKER_HOST for subsequent steps
+          set-host: true
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: 'npm'
           cache-dependency-path: backend/graphql-server/package-lock.json
-      - name: Wait for DinD Docker to be ready
+      - name: Wait for Docker to be ready
         run: |
-          echo "Checking Docker (DinD) availability via DOCKER_HOST=${DOCKER_HOST}"
-          # give the Daemon a few seconds to start
+          echo "Checking Docker availability via DOCKER_HOST=${DOCKER_HOST:-'(unset)'}"
           for i in {1..20}; do
             docker info && break || sleep 1
           done
       - name: Install dependencies
         run: npm ci
-      - name: Run integration tests (Testcontainers, DinD)
+      - name: Run integration tests (Testcontainers, via setup-docker)
         env:
           DEBUG: "testcontainers*"
           TESTCONTAINERS_RYUK_DISABLED: "true"
