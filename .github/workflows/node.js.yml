@@ -70,3 +70,49 @@ jobs:
           # (set here but can be overridden in logs)
           TESTCONTAINERS_RYUK_DISABLED: "true"
         run: npm run test:integration
+
+  # Alternative job that runs the integration tests against a Docker-in-Docker service.
+  # Use this if the runner can't reach a local Docker socket; it starts a docker:dind
+  # service and points DOCKER_HOST at tcp://localhost:2375 so Testcontainers can use it.
+  integration-tests-dind:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/graphql-server
+    needs: build
+    env:
+      # point docker client at the DinD service
+      DOCKER_HOST: tcp://localhost:2375
+      # disable TLS for the DinD service (recommended for GitHub Actions DinD)
+      DOCKER_TLS_CERTDIR: ""
+
+    services:
+      docker:
+        image: docker:24-dind
+        privileged: true
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: backend/graphql-server/package-lock.json
+      - name: Wait for DinD Docker to be ready
+        run: |
+          echo "Checking Docker (DinD) availability via DOCKER_HOST=${DOCKER_HOST}"
+          # give the Daemon a few seconds to start
+          for i in {1..20}; do
+            docker info && break || sleep 1
+          done
+      - name: Install dependencies
+        run: npm ci
+      - name: Run integration tests (Testcontainers, DinD)
+        env:
+          DEBUG: "testcontainers*"
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+        run: npm run test:integration
