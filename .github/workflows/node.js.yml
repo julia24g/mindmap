@@ -43,59 +43,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: 'npm'
-          cache-dependency-path: backend/graphql-server/package-lock.json
-      - name: Ensure Docker is available
-        run: |
-          echo "Checking Docker availability"
-          docker info
-      - name: Testcontainers debug info
-        run: |
-          echo "Node version: $(node --version)"
-          echo "NPM version: $(npm --version)"
-          node -e "console.log('can require testcontainers:', !!(function(){try{require('testcontainers');return true}catch(e){return false}})())"
-          echo "Environment vars relevant to testcontainers:"
-          env | grep -i "DOCKER\|TESTCONTAINERS\|CI" || true
-      - name: Install dependencies
-        run: npm ci
-      - name: Run integration tests (Testcontainers)
-        env:
-          # enable verbose debug logs for testcontainers
-          DEBUG: "testcontainers*"
-          # allow testcontainers to reuse existing Docker environment if needed
-          # (set here but can be overridden in logs)
-          TESTCONTAINERS_RYUK_DISABLED: "true"
-        run: npm run test:integration
-
-  # Alternative job that runs the integration tests against a Docker-in-Docker service.
-  # Use this if the runner can't reach a local Docker socket; it starts a docker:dind
-  # service and points DOCKER_HOST at tcp://localhost:2375 so Testcontainers can use it.
-  integration-tests-dind:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend/graphql-server
-    needs: build
-
-    steps:
-      - uses: actions/checkout@v4
       - name: Set up Docker (install & start)
         id: setup-docker
         uses: docker/setup-docker-action@v4
         with:
-          # expose the Docker API over TCP so Testcontainers can connect if needed
+          version: "type=archive,version=v27.4.0"
           tcp-port: 2375
-          # have the action set DOCKER_HOST for subsequent steps
           set-host: true
-      - name: Print setup-docker outputs
-        run: |
-          echo "setup-docker outputs:"
-          echo "sock=${{ steps.setup-docker.outputs.sock }}"
-          echo "tcp=${{ steps.setup-docker.outputs.tcp }}"
       - name: Export DOCKER_HOST from setup-docker outputs if present
         run: |
           if [ -n "${{ steps.setup-docker.outputs.tcp }}" ]; then
@@ -103,7 +57,6 @@ jobs:
             echo "DOCKER_HOST=${{ steps.setup-docker.outputs.tcp }}" >> $GITHUB_ENV
           elif [ -n "${{ steps.setup-docker.outputs.sock }}" ]; then
             echo "Using sock output from setup-docker"
-            # ensure the sock value is in unix:// format
             SOCKVAL="${{ steps.setup-docker.outputs.sock }}"
             if [[ "$SOCKVAL" != unix://* ]]; then
               SOCKVAL="unix://$SOCKVAL"
@@ -126,7 +79,7 @@ jobs:
           done
       - name: Install dependencies
         run: npm ci
-      - name: Run integration tests (Testcontainers, via setup-docker)
+      - name: Run integration tests
         env:
           DEBUG: "testcontainers*"
           TESTCONTAINERS_RYUK_DISABLED: "true"

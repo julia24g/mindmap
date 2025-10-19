@@ -158,7 +158,9 @@ mindmap/
    ```bash
    cd backend/graphql-server
    npm test
-   npm run test:integration
+   # Run integration tests (requires Docker to be running)
+   # For verbose Testcontainers logs:
+   DEBUG=testcontainers* npm run test:integration
    ```
 
 4. **Run frontend development server**
@@ -200,6 +202,17 @@ mindmap/
 ### Test Structure
 - **Unit Tests**: Individual resolver testing with mocked dependencies
 - **Integration Tests**: Full API testing with real databases
+
+### Running integration tests locally
+
+Integration tests require Docker (Postgres and Neo4j are started via Testcontainers). Ensure Docker Desktop (or another Docker engine) is running, then from `backend/graphql-server` run:
+
+```bash
+# verbose Testcontainers logs useful for debugging
+DEBUG=testcontainers* npm run test:integration
+```
+
+On CI we use `docker/setup-docker-action@v4` to install/start Docker and set `DOCKER_HOST`. If the job fails due to container runtime detection, inspect the Testcontainers debug logs (enabled in the workflow) and the `setup-docker` outputs for `sock` and `tcp` addresses.
 
 # Service URLs
 GRAPHQL_ENDPOINT=http://localhost:4000/graphql
