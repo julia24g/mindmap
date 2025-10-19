@@ -13,6 +13,9 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/graphql-server
 
     strategy:
       matrix:
@@ -26,6 +29,31 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+        cache-dependency-path: backend/graphql-server/package-lock.json
     - run: npm ci
     - run: npm run build --if-present
     - run: npm test
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/graphql-server
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: backend/graphql-server/package-lock.json
+      - name: Ensure Docker is available
+        run: |
+          echo "Checking Docker availability"
+          docker info
+      - name: Install dependencies
+        run: npm ci
+      - name: Run integration tests (Testcontainers)
+        run: npm run test:integration

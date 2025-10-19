@@ -6,7 +6,8 @@
     "build": "tsc",
     "compile": "tsc",
     "start": "npm run compile && node ./dist/index.js",
-    "test": "jest"
+    "test": "jest",
+    "test:integration": "jest tests/integration.test.ts --runInBand --testTimeout=120000"
   },
   "keywords": [],
   "author": "",
@@ -26,8 +27,10 @@
     "pg": "^8.16.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
+    "@testcontainers/neo4j": "^11.7.1",
+    "@testcontainers/postgresql": "^11.7.1",
     "@types/axios": "^0.9.36",
+    "@types/bcrypt": "^5.0.2",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^22.15.19",
@@ -36,6 +39,7 @@
     "jest-mock-extended": "^4.0.0-beta1",
     "nock": "^14.0.5",
     "supertest": "^7.1.1",
+    "testcontainers": "^11.7.1",
     "ts-jest": "^29.3.4",
     "typescript": "^5.8.3"
   }

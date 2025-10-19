@@ -64,24 +64,21 @@ export const resolvers = {
       }
       const session = neo4jDriver.session();
       try {
+        // Get all tags that describe content for this user and their content nodes
         const tag_to_content = await session.run(
           `
-          MATCH (parent:Tag)-[subRel:HAS_SUBTAG {userId: $userId}]->(sub:Tag)
           MATCH (tag:Tag)-[:DESCRIBES]->(content:Content {userId: $userId})
-          WITH COLLECT(DISTINCT sub) + COLLECT(DISTINCT parent) + COLLECT(DISTINCT tag) AS tags
-          UNWIND tags AS t
-          MATCH (t)-[:DESCRIBES]->(c:Content {userId: $userId})
-          RETURN DISTINCT t, c
+          RETURN DISTINCT tag AS t, content AS c
           `,
           { userId }
         );
 
+        // Get all HAS_SUBTAG relationships (start/end ids) across tags
         const tag_to_tag = await session.run(
           `
-          MATCH (parent:Tag)-[r:HAS_SUBTAG {userId: $userId}]->(sub:Tag)
-          RETURN COLLECT(DISTINCT r) AS subtagRels
-          `,
-          { userId }
+          MATCH (parent:Tag)-[r:HAS_SUBTAG]->(sub:Tag)
+          RETURN COLLECT(DISTINCT {start: id(parent), end: id(sub)}) AS subtagRels
+          `
         );
 
         const nodesMap = new Map<string, any>();
@@ -91,41 +88,48 @@ export const resolvers = {
           const tag = record.get('t');
           const content = record.get('c');
 
-          if (tag && !nodesMap.has(`tag_${tag.identity}`)) {
-            nodesMap.set(`tag_${tag.identity}`,
+          const tagId = tag?.identity?.toNumber ? tag.identity.toNumber() : tag?.identity;
+          const contentInternalId = content?.identity?.toNumber ? content.identity.toNumber() : content?.identity;
+          const contentNodeIdProp = content?.properties?.contentId ?? contentInternalId;
+
+          if (tag && !nodesMap.has(`tag_${tagId}`)) {
+            nodesMap.set(`tag_${tagId}`,
               {
-                id: `tag_${tag.identity}`,
+                id: `tag_${tagId}`,
                 label: 'Tag',
                 name: tag.properties.name
               }
             );
           }
 
-          if (content && !nodesMap.has(`content_${content.identity}`)) {
-            nodesMap.set(`content_${content.identity}`,
+          if (content && !nodesMap.has(`content_${contentInternalId}`)) {
+            nodesMap.set(`content_${contentInternalId}`,
               {
-                id: `content_${content.identity}`,
+                id: `content_${contentInternalId}`,
                 label: 'Content',
-                contentId: content.identity,
+                // Prefer the contentId property stored on the node (this is the Postgres content id)
+                contentId: contentNodeIdProp,
               }
             );
           }
 
           if (tag && content) {
             edges.push({
-              from: `tag_${tag.identity}`,
-              to: `content_${content.identity}`,
+              from: `tag_${tagId}`,
+              to: `content_${contentInternalId}`,
               type: 'DESCRIBES'
             });
           }
         });
 
-        // Safely handle empty tag_to_tag.records
-        const subtagRels = tag_to_tag.records[0]?.get("subtagRels") || [];
+        // Safely handle empty tag_to_tag.records and normalize ids
+        const subtagRels = tag_to_tag.records[0]?.get('subtagRels') || [];
         subtagRels.forEach((rel: any) => {
+          const start = rel.start && rel.start.toNumber ? rel.start.toNumber() : rel.start;
+          const end = rel.end && rel.end.toNumber ? rel.end.toNumber() : rel.end;
           edges.push({
-            from: `tag_${rel.start}`,
-            to: `tag_${rel.end}`,
+            from: `tag_${start}`,
+            to: `tag_${end}`,
             type: 'HAS_SUBTAG'
           });
         });
