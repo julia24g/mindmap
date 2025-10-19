@@ -53,7 +53,20 @@ jobs:
         run: |
           echo "Checking Docker availability"
           docker info
+      - name: Testcontainers debug info
+        run: |
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          node -e "console.log('can require testcontainers:', !!(function(){try{require('testcontainers');return true}catch(e){return false}})())"
+          echo "Environment vars relevant to testcontainers:"
+          env | grep -i "DOCKER\|TESTCONTAINERS\|CI" || true
       - name: Install dependencies
         run: npm ci
       - name: Run integration tests (Testcontainers)
+        env:
+          # enable verbose debug logs for testcontainers
+          DEBUG: "testcontainers*"
+          # allow testcontainers to reuse existing Docker environment if needed
+          # (set here but can be overridden in logs)
+          TESTCONTAINERS_RYUK_DISABLED: "true"
         run: npm run test:integration
