@@ -84,12 +84,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker (install & start)
+        id: setup-docker
         uses: docker/setup-docker-action@v4
         with:
           # expose the Docker API over TCP so Testcontainers can connect if needed
           tcp-port: 2375
           # have the action set DOCKER_HOST for subsequent steps
           set-host: true
+      - name: Print setup-docker outputs
+        run: |
+          echo "setup-docker outputs:"
+          echo "sock=${{ steps.setup-docker.outputs.sock }}"
+          echo "tcp=${{ steps.setup-docker.outputs.tcp }}"
+      - name: Export DOCKER_HOST from setup-docker outputs if present
+        run: |
+          if [ -n "${{ steps.setup-docker.outputs.tcp }}" ]; then
+            echo "Using tcp output from setup-docker"
+            echo "DOCKER_HOST=${{ steps.setup-docker.outputs.tcp }}" >> $GITHUB_ENV
+          elif [ -n "${{ steps.setup-docker.outputs.sock }}" ]; then
+            echo "Using sock output from setup-docker"
+            # ensure the sock value is in unix:// format
+            SOCKVAL="${{ steps.setup-docker.outputs.sock }}"
+            if [[ "$SOCKVAL" != unix://* ]]; then
+              SOCKVAL="unix://$SOCKVAL"
+            fi
+            echo "DOCKER_HOST=$SOCKVAL" >> $GITHUB_ENV
+          else
+            echo "No tcp or sock output from setup-docker; leaving DOCKER_HOST untouched"
+          fi
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
