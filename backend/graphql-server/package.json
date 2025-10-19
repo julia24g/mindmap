@@ -6,7 +6,7 @@
     "build": "tsc",
     "compile": "tsc",
     "start": "npm run compile && node ./dist/index.js",
-    "test": "jest --testPathIgnorePatterns='tests/integration.test.ts'",
+  "test": "jest --testPathIgnorePatterns='dist/|tests/integration.test.ts'",
     "test:integration": "jest tests/integration.test.ts --runInBand --testTimeout=120000"
   },
   "keywords": [],
