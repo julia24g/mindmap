@@ -2,13 +2,13 @@ import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
 // Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+const localStorageMock: Partial<Storage> = {
+  getItem: vi.fn((_key: string) => null),
+  setItem: vi.fn((_key: string, _value: string) => {}),
+  removeItem: vi.fn((_key: string) => {}),
+  clear: vi.fn(() => {}),
 }
-global.localStorage = localStorageMock
+global.localStorage = localStorageMock as Storage
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
