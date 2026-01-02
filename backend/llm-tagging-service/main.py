@@ -1,18 +1,40 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, validator
 from typing import List, Optional
-from transformers import pipeline
+import os
+import requests
+from dotenv import load_dotenv
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
 
 # Initialize FastAPI
 app = FastAPI()
+load_dotenv()
 
-# LLM pipeline
-tagger = pipeline("text-generation", model="gpt2")
+model_name = "Qwen/Qwen2.5-3B-Instruct"
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+if not HF_TOKEN:
+    raise RuntimeError("HF_TOKEN not found in environment. Please set it in .env")
+
+HF_API_URL = f"https://api-inference.huggingface.co/models/{model_name}"
+
+def tagger(prompt: str, max_new_tokens: int = 20):
+    """Call Hugging Face Inference API for text generation.
+
+    Returns the raw JSON response (usually a list of generations).
+    """
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_new_tokens": max_new_tokens},
+    }
+    resp = requests.post(HF_API_URL, headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp.json()
 
 # GraphQL setup
-GRAPHQL_ENDPOINT = "http://localhost:4000/graphql"
+GRAPHQL_ENDPOINT = os.getenv("GRAPHQL_ENDPOINT")
 
 transport = RequestsHTTPTransport(url=GRAPHQL_ENDPOINT, verify=True, retries=3)
 client = Client(transport=transport, fetch_schema_from_transport=False)
