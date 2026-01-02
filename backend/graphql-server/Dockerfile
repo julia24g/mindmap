@@ -1,23 +1,15 @@
-# Use Node.js base image
-FROM node:18
-
-# Set working directory
+FROM node:18 AS builder
 WORKDIR /app
-
-# Copy dependency manifests
 COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the app
+RUN npm ci --include=dev
 COPY . .
-
-# Build TypeScript
 RUN npm run build
 
-# Expose GraphQL port
+FROM node:18-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=builder /app/dist ./dist
 EXPOSE 4000
-
-# Start the server
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
