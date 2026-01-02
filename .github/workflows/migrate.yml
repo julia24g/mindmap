@@ -27,5 +27,6 @@ jobs:
 
       - name: Run Postgres migrations
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}?sslmode=require
+          PGSSLMODE: require
         run: npm --prefix backend/graphql-server run migrate
