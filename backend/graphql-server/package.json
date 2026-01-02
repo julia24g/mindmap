@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "type": "module",
+  "type": "commonjs",
   "dependencies": {
     "@apollo/server": "^4.12.1",
     "@types/nock": "^10.0.3",
