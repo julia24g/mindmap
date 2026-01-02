@@ -8,4 +8,9 @@ export default {
   transform: {
     ...tsJestTransformCfg,
   },
+  globals: {
+    'ts-jest': {
+      tsconfig: 'tsconfig.test.json'
+    }
+  }
 };
