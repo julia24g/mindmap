@@ -1,10 +1,10 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 
-import { neo4jDriver } from './db/neo4j';
-import { typeDefs } from './schema'
-import { resolvers } from './resolvers'
-import { getAuthContext, AuthContext } from './auth'
+import { neo4jDriver } from './db/neo4j.js';
+import { typeDefs } from './schema.js'
+import { resolvers } from './resolvers.js'
+import { getAuthContext, AuthContext } from './auth.js'
 
 const server = new ApolloServer({
     typeDefs,

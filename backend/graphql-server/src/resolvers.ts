@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pgPool } from './db/postgres';
-import { neo4jDriver } from './db/neo4j';
+import { pgPool } from './db/postgres.js';
+import { neo4jDriver } from './db/neo4j.js';
 import { GraphQLError } from 'graphql';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { requireAuth, AuthContext } from './auth';
-import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils';
+import { requireAuth, AuthContext } from './auth.js';
+import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils.js';
 
 // JWT secret - in production, this should be in environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
