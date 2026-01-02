@@ -4,9 +4,9 @@
     "outDir": "dist",
     "lib": ["es2020"],
     "target": "es2020",
-  "module": "nodenext",
-  "moduleResolution": "nodenext",
-  "allowSyntheticDefaultImports": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "types": ["node"]
   }

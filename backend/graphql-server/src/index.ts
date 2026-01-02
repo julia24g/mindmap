@@ -19,7 +19,8 @@ const server = new ApolloServer({
     }
   })
 
-const { url } = await startStandaloneServer(server, {
+void (async () => {
+  const { url } = await startStandaloneServer(server, {
     listen: { port: 4000 },
     context: async ({ req }) => {
       const authContext = getAuthContext(req.headers);
@@ -28,9 +29,10 @@ const { url } = await startStandaloneServer(server, {
         headers: req.headers
       };
     }
-})
+  });
 
-console.log('Server ready at port', 4000)
+  console.log('Server ready at port', 4000);
+})();
 
 process.on('exit', async () => {
   await neo4jDriver.close();
