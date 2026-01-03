@@ -20,14 +20,19 @@
   "dependencies": {
     "@apollo/server": "^4.12.1",
     "@types/nock": "^10.0.3",
+    "@types/redis": "^4.0.10",
     "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
+    "connect-redis": "^9.0.0",
     "dotenv": "^16.5.0",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
     "graphql": "^16.11.0",
     "graphql-scalars": "^1.24.2",
     "jsonwebtoken": "^9.0.2",
     "neo4j-driver": "^5.28.1",
-    "pg": "^8.16.0"
+    "pg": "^8.16.0",
+    "redis": "^5.10.0"
   },
   "devDependencies": {
     "@testcontainers/neo4j": "^11.7.1",

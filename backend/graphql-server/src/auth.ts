@@ -9,7 +9,7 @@ export interface AuthContext {
   isAuthenticated: boolean;
 }
 
-export function verifyToken(token: string): { userId: string; email: string } {
+export const verifyToken = (token: string): { userId: string; email: string } => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
     return decoded;
@@ -18,7 +18,7 @@ export function verifyToken(token: string): { userId: string; email: string } {
   }
 }
 
-export function getAuthContext(headers: Record<string, string | string[]>): AuthContext {
+export const getAuthContext = (headers: Record<string, string | string[]>): AuthContext => {
   const authHeader = headers.authorization || headers.Authorization;
   
   if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
@@ -39,7 +39,7 @@ export function getAuthContext(headers: Record<string, string | string[]>): Auth
   }
 }
 
-export function requireAuth(context: AuthContext): void {
+export const requireAuth = (context: AuthContext): void => {
   if (!context.isAuthenticated) {
     throw new GraphQLError('Authentication required');
   }

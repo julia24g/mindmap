@@ -8,8 +8,7 @@ import jwt from 'jsonwebtoken';
 import { requireAuth, AuthContext } from './auth';
 import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils';
 
-// JWT secret - in production, this should be in environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export const resolvers = {
   DateTime: GraphQLDateTime,
