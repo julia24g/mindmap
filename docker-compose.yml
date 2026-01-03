@@ -35,12 +35,6 @@ services:
     environment:
       - GRAPHQL_ENDPOINT=http://host.docker.internal:4000/graphql
 
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
-
   graphql-server:
     build:
       context: ./backend/graphql-server
@@ -50,7 +44,6 @@ services:
     depends_on:
       - postgres
       - neo4j
-      - redis
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -58,8 +51,6 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       NEO4J_USER: neo4j
       NEO4J_URI: bolt://neo4j:7687
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
 
 volumes:
   pg_data:
