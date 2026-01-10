@@ -27,18 +27,6 @@ services:
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
-  
-  llm-service:
-    build:
-      context: ./backend/llm-tagging-service
-    container_name: llm-tagging-service
-    ports:
-      - "8000:8000"
-    depends_on:
-      - neo4j
-    environment:
-      - GRAPHQL_ENDPOINT=http://host.docker.internal:4000/graphql
-      - HF_TOKEN=${HF_TOKEN}
 
 volumes:
   pg_data:

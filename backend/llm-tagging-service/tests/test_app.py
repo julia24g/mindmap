@@ -127,7 +127,7 @@ class TestSuggestTagsEndpoint:
         mock_fetch_tags.return_value = sample_existing_tags
         mock_suggest_tags.return_value = ["machine-learning", "ai"]
         
-        response = client.post("/suggest-tags", json=sample_event.dict())
+        response = client.post("/suggest-tags", json=sample_event.model_dump())
         
         assert response.status_code == 200
         assert response.json() == {"suggested_tags": ["machine-learning", "ai"]}
@@ -144,7 +144,7 @@ class TestSuggestTagsEndpoint:
             description=""
         )
         
-        response = client.post("/suggest-tags", json=event_with_empty_desc.dict())
+        response = client.post("/suggest-tags", json=event_with_empty_desc.model_dump())
         
         assert response.status_code == 200
         assert response.json() == {"suggested_tags": ["machine-learning"]}
@@ -154,7 +154,7 @@ class TestSuggestTagsEndpoint:
         """Test API error handling when GraphQL fails"""
         mock_fetch_tags.side_effect = Exception("GraphQL error")
         
-        response = client.post("/suggest-tags", json=sample_event.dict())
+        response = client.post("/suggest-tags", json=sample_event.model_dump())
         
         assert response.status_code == 500
         assert "GraphQL error" in response.json()["detail"]
@@ -166,7 +166,7 @@ class TestSuggestTagsEndpoint:
         mock_fetch_tags.return_value = sample_existing_tags
         mock_suggest_tags.side_effect = Exception("LLM error")
         
-        response = client.post("/suggest-tags", json=sample_event.dict())
+        response = client.post("/suggest-tags", json=sample_event.model_dump())
         
         assert response.status_code == 500
         assert "LLM error" in response.json()["detail"]
@@ -198,11 +198,11 @@ class TestDuplicateContentHandling:
         mock_suggest_tags.return_value = ["machine-learning", "ai"]
         
         # First call
-        response1 = client.post("/suggest-tags", json=sample_event.dict())
+        response1 = client.post("/suggest-tags", json=sample_event.model_dump())
         assert response1.status_code == 200
         
         # Second call with same content
-        response2 = client.post("/suggest-tags", json=sample_event.dict())
+        response2 = client.post("/suggest-tags", json=sample_event.model_dump())
         assert response2.status_code == 200
         
         # Both should return the same suggestions (given same LLM response)
@@ -225,7 +225,7 @@ class TestIntegration:
         # Mock LLM response
         mock_tagger.return_value = [{"generated_text": "Tags: existing-tag, new-tag"}]
         
-        response = client.post("/suggest-tags", json=sample_event.dict())
+        response = client.post("/suggest-tags", json=sample_event.model_dump())
         
         assert response.status_code == 200
         result = response.json()
@@ -244,7 +244,7 @@ class TestPerformance:
         mock_fetch_tags.return_value = large_tags_list
         mock_suggest_tags.return_value = ["tag-1", "tag-2"]
         
-        response = client.post("/suggest-tags", json=sample_event.dict())
+        response = client.post("/suggest-tags", json=sample_event.model_dump())
         
         assert response.status_code == 200
         # Verify the large list was passed to suggest_tags
