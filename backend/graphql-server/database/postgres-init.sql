@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   firstname text NOT NULL,
   lastname text NOT NULL,
   email text NOT NULL UNIQUE,
-  passwordhash text NOT NULL,
+  firebaseuid text NOT NULL UNIQUE,
   createdat timestamptz NOT NULL DEFAULT now(),
   updatedat timestamptz
 );

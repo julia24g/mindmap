@@ -1,3 +1,11 @@
+import { ApolloServer } from '@apollo/server';
+import { resolvers } from '../src/resolvers';
+import { typeDefs } from '../src/schema';
+import nock from 'nock';
+import { pgPool } from '../src/db/postgres';
+import { neo4jDriver } from '../src/db/neo4j';
+import { mockVerifyIdToken, auth as mockAuth } from '../__mocks__/firebase-admin';
+
 jest.mock('../src/db/postgres', () => ({
   pgPool: { query: jest.fn() }
 }));
@@ -5,27 +13,20 @@ jest.mock('../src/db/neo4j', () => ({
   neo4jDriver: { session: jest.fn() }
 }));
 
-import { ApolloServer } from '@apollo/server';
-import { resolvers } from '../src/resolvers';
-import { typeDefs } from '../src/schema';
-import nock from 'nock';
-import { pgPool } from '../src/db/postgres';
-import { neo4jDriver } from '../src/db/neo4j';
-import { AuthContext } from '../src/auth';
-
-const mockPgQuery = pgPool.query as jest.Mock;
-
 jest.mock('pg');
 jest.mock('neo4j-driver');
+jest.mock('firebase-admin');
+
+const mockPgQuery = pgPool.query as jest.Mock;
 
 const MOCK_LLM_RESPONSE = ["software engineering", "databases", "system design"];
 
 describe('GraphQL Resolvers', () => {
-  let server: ApolloServer<AuthContext>;
+  let server: ApolloServer;
   let neo4jSessionMock: any;
 
   beforeAll(() => {
-    server = new ApolloServer<AuthContext>({ 
+    server = new ApolloServer({ 
       typeDefs, 
       resolvers,
       formatError: (error) => {
@@ -41,6 +42,12 @@ describe('GraphQL Resolvers', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    
+    // Restore auth mock implementation after resetAllMocks
+    mockAuth.mockImplementation(() => ({
+      verifyIdToken: mockVerifyIdToken,
+    }));
+    
     // Mock database connection methods
     mockPgQuery.mockReset();
     neo4jSessionMock = {
@@ -72,8 +79,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `query($contentId: ID!) { content(contentId: $contentId) { title } }`,
       variables: { contentId: '999' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -85,8 +90,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `query($contentId: ID!) { content(contentId: $contentId) { title } }`,
       variables: { contentId: '1' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     const data = (res as any).body.singleResult.data;
     expect(data.content.title).toBe('Test Content');
@@ -101,8 +104,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `query($userId: ID!) { get_user_graph(userId: $userId) { nodes { id } edges { from to } } }`,
       variables: { userId: 'nonexistent-user' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -155,8 +156,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `query($userId: ID!) { get_user_graph(userId: $userId) { nodes { id label contentId name } edges { from to type } } }`,
       variables: { userId: '1' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     
     const data = (res as any).body.singleResult.data;
@@ -214,8 +213,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `mutation($userId: ID!, $title: String!) { addContent(userId: $userId, title: $title) { contentId title } }`,
       variables: { userId: '1', title: 'New Content' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     
     const data = (res as any).body.singleResult.data;
@@ -231,8 +228,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `mutation($userId: ID!, $title: String!) { addContent(userId: $userId, title: $title) { contentId title } }`,
       variables: { userId: 'nonexistent-user', title: 'New Content' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -245,8 +240,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `mutation($contentId: ID!) { deleteContent(contentId: $contentId) }`,
       variables: { contentId: '999' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     const data = (res as any).body.singleResult.data;
     expect(data.deleteContent).toBe(false);
@@ -273,8 +266,6 @@ describe('GraphQL Resolvers', () => {
     const res = await server.executeOperation({
       query: `mutation($contentId: ID!) { deleteContent(contentId: $contentId) }`,
       variables: { contentId: '1' }
-    }, {
-      contextValue: { isAuthenticated: false }
     });
     const data = (res as any).body.singleResult.data;
     expect(data.deleteContent).toBe(true);
@@ -284,34 +275,35 @@ describe('GraphQL Resolvers', () => {
 
   // User Management Tests
   describe('User Management', () => {
-    // Query - login
-    it('should successfully login with valid credentials', async () => {
+    // Mutation - login
+    it('should successfully login with valid Firebase token', async () => {
       const mockUser = {
         userid: 'user-123',
         firstname: 'John',
         lastname: 'Doe',
         email: 'john@example.com',
-        passwordhash: '$2b$10$hashedpassword',
+        firebaseuid: 'firebase-uid-123',
         createdat: new Date(),
         updatedat: new Date()
       };
       
+      // Mock Firebase token verification
+      mockVerifyIdToken.mockResolvedValueOnce({
+        uid: 'firebase-uid-123',
+        email: 'john@example.com'
+      });
+      
+      // Mock user lookup by firebaseUid
       mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
       
-      // Mock bcrypt.compare to return true for valid password
-      const bcrypt = require('bcrypt');
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
-      
       const res = await server.executeOperation({
-        query: `mutation($email: String!, $password: String!) { 
-          login(email: $email, password: $password) { 
-            user { userId firstName lastName email createdAt } 
+        query: `mutation($idToken: String!) { 
+          login(idToken: $idToken) { 
+            user { userId firstName lastName email firebaseUid createdAt } 
             token 
           } 
         }`,
-        variables: { email: 'john@example.com', password: 'password123' }
-      }, {
-        contextValue: { isAuthenticated: false }
+        variables: { idToken: 'valid-firebase-token' }
       });
       
       const data = (res as any).body.singleResult.data;
@@ -319,64 +311,55 @@ describe('GraphQL Resolvers', () => {
         userId: 'user-123',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@example.com'
+        email: 'john@example.com',
+        firebaseUid: 'firebase-uid-123'
       });
       expect(data.login.token).toBeDefined();
       expect(typeof data.login.token).toBe('string');
     });
 
-    it('should return error for invalid email', async () => {
+    it('should return error for invalid Firebase token', async () => {
+      // Mock Firebase token verification failure
+      mockVerifyIdToken.mockRejectedValueOnce(new Error('Invalid token'));
+      
+      const res = await server.executeOperation({
+        query: `mutation($idToken: String!) { 
+          login(idToken: $idToken) { 
+            user { userId } 
+            token 
+          } 
+        }`,
+        variables: { idToken: 'invalid-firebase-token' }
+      });
+      
+      const errors = (res as any).body?.singleResult?.errors;
+      expect(errors).toBeDefined();
+      expect(errors?.[0].message).toMatch('Invalid Firebase ID token');
+    });
+
+    it('should return error when user does not exist in database', async () => {
+      // Mock Firebase token verification success
+      mockVerifyIdToken.mockResolvedValueOnce({
+        uid: 'firebase-uid-999',
+        email: 'nonexistent@example.com'
+      });
+      
+      // Mock user not found
       mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
       
       const res = await server.executeOperation({
-        query: `mutation($email: String!, $password: String!) { 
-          login(email: $email, password: $password) { 
+        query: `mutation($idToken: String!) { 
+          login(idToken: $idToken) { 
             user { userId } 
             token 
           } 
         }`,
-        variables: { email: 'nonexistent@example.com', password: 'password123' }
-      }, {
-        contextValue: { isAuthenticated: false }
+        variables: { idToken: 'valid-firebase-token' }
       });
       
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Invalid email or password');
-    });
-
-    it('should return error for invalid password', async () => {
-      const mockUser = {
-        userid: 'user-123',
-        firstname: 'John',
-        lastname: 'Doe',
-        email: 'john@example.com',
-        passwordhash: '$2b$10$hashedpassword',
-        createdat: new Date(),
-        updatedat: new Date()
-      };
-      
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
-      
-      // Mock bcrypt.compare to return false for invalid password
-      const bcrypt = require('bcrypt');
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
-      
-      const res = await server.executeOperation({
-        query: `mutation($email: String!, $password: String!) { 
-          login(email: $email, password: $password) { 
-            user { userId } 
-            token 
-          } 
-        }`,
-        variables: { email: 'john@example.com', password: 'wrongpassword' }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Invalid email or password');
+      expect(errors?.[0].message).toMatch('User not found. Please create an account first.');
     });
 
     // Mutation - createUser
@@ -386,34 +369,36 @@ describe('GraphQL Resolvers', () => {
         firstname: 'Jane',
         lastname: 'Smith',
         email: 'jane@example.com',
+        firebaseuid: 'firebase-uid-456',
         createdat: new Date(),
         updatedat: new Date()
       };
       
-      // Mock user doesn't exist
+      // Mock Firebase token verification
+      mockVerifyIdToken.mockResolvedValueOnce({
+        uid: 'firebase-uid-456',
+        email: 'jane@example.com'
+      });
+      
+      // Mock check for existing user by firebaseUid
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      // Mock check for existing user by email
       mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
       // Mock user creation
       mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
       
-      // Mock bcrypt.hash
-      const bcrypt = require('bcrypt');
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('$2b$10$hashedpassword');
-      
       const res = await server.executeOperation({
-        query: `mutation($firstName: String!, $lastName: String!, $email: String!, $password: String!) { 
-          createUser(firstName: $firstName, lastName: $lastName, email: $email, password: $password) { 
-            user { userId firstName lastName email createdAt } 
+        query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
+          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
+            user { userId firstName lastName email firebaseUid createdAt } 
             token 
           } 
         }`,
         variables: { 
+          idToken: 'valid-firebase-token',
           firstName: 'Jane', 
-          lastName: 'Smith', 
-          email: 'jane@example.com', 
-          password: 'password123' 
+          lastName: 'Smith'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
       });
       
       const data = (res as any).body.singleResult.data;
@@ -421,30 +406,65 @@ describe('GraphQL Resolvers', () => {
         userId: 'new-user-123',
         firstName: 'Jane',
         lastName: 'Smith',
-        email: 'jane@example.com'
+        email: 'jane@example.com',
+        firebaseUid: 'firebase-uid-456'
       });
       expect(data.createUser.token).toBeDefined();
     });
 
-    it('should return error when creating user with existing email', async () => {
-      // Mock user already exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ email: 'existing@example.com' }] });
+    it('should return error when creating user with existing Firebase UID', async () => {
+      // Mock Firebase token verification
+      mockVerifyIdToken.mockResolvedValueOnce({
+        uid: 'firebase-uid-existing',
+        email: 'existing@example.com'
+      });
+      
+      // Mock user already exists by firebaseUid
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ firebaseuid: 'firebase-uid-existing' }] });
       
       const res = await server.executeOperation({
-        query: `mutation($firstName: String!, $lastName: String!, $email: String!, $password: String!) { 
-          createUser(firstName: $firstName, lastName: $lastName, email: $email, password: $password) { 
+        query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
+          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
             user { userId } 
             token 
           } 
         }`,
         variables: { 
+          idToken: 'valid-firebase-token',
           firstName: 'John', 
-          lastName: 'Doe', 
-          email: 'existing@example.com', 
-          password: 'password123' 
+          lastName: 'Doe'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
+      });
+      
+      const errors = (res as any).body?.singleResult?.errors;
+      expect(errors).toBeDefined();
+      expect(errors?.[0].message).toMatch('User with this Firebase UID already exists');
+    });
+
+    it('should return error when creating user with existing email', async () => {
+      // Mock Firebase token verification
+      mockVerifyIdToken.mockResolvedValueOnce({
+        uid: 'firebase-uid-new',
+        email: 'existing@example.com'
+      });
+      
+      // Mock user doesn't exist by firebaseUid
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      // Mock user already exists by email
+      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ email: 'existing@example.com' }] });
+      
+      const res = await server.executeOperation({
+        query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
+          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
+            user { userId } 
+            token 
+          } 
+        }`,
+        variables: { 
+          idToken: 'valid-firebase-token',
+          firstName: 'John', 
+          lastName: 'Doe'
+        }
       });
       
       const errors = (res as any).body?.singleResult?.errors;
@@ -459,6 +479,7 @@ describe('GraphQL Resolvers', () => {
         firstname: 'John',
         lastname: 'Doe',
         email: 'john@example.com',
+        firebaseuid: 'firebase-uid-123',
         createdat: new Date(),
         updatedat: new Date()
       };
@@ -468,12 +489,10 @@ describe('GraphQL Resolvers', () => {
       const res = await server.executeOperation({
         query: `query($userId: ID!) { 
           getUser(userId: $userId) { 
-            userId firstName lastName email createdAt updatedAt 
+            userId firstName lastName email firebaseUid createdAt updatedAt 
           } 
         }`,
         variables: { userId: 'user-123' }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
       });
       
       const data = (res as any).body.singleResult.data;
@@ -481,25 +500,9 @@ describe('GraphQL Resolvers', () => {
         userId: 'user-123',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@example.com'
+        email: 'john@example.com',
+        firebaseUid: 'firebase-uid-123'
       });
-    });
-
-    it('should return error when getUser is called without authentication', async () => {
-      const res = await server.executeOperation({
-        query: `query($userId: ID!) { 
-          getUser(userId: $userId) { 
-            userId firstName 
-          } 
-        }`,
-        variables: { userId: 'user-123' }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Authentication required');
     });
 
     it('should return error when userId does not exist', async () => {
@@ -512,8 +515,6 @@ describe('GraphQL Resolvers', () => {
           } 
         }`,
         variables: { userId: 'nonexistent-user' }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
       });
       
       const errors = (res as any).body?.singleResult?.errors;
@@ -541,9 +542,7 @@ describe('GraphQL Resolvers', () => {
           } 
         }`,
         variables: { email: 'john@example.com' }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getUserByEmail).toMatchObject({
@@ -583,9 +582,7 @@ describe('GraphQL Resolvers', () => {
             userId firstName lastName email createdAt 
           } 
         }`
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getAllUsers).toHaveLength(2);
@@ -633,9 +630,7 @@ describe('GraphQL Resolvers', () => {
           lastName: 'Smith',
           email: 'jane.smith@example.com'
         }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateUser).toMatchObject({
@@ -644,26 +639,6 @@ describe('GraphQL Resolvers', () => {
         lastName: 'Smith',
         email: 'jane.smith@example.com'
       });
-    });
-
-    it('should return error when updating user without authentication', async () => {
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!, $firstName: String) { 
-          updateUser(userId: $userId, firstName: $firstName) { 
-            userId firstName 
-          } 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          firstName: 'Jane'
-        }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Authentication required');
     });
 
     it('should return error when email is already taken by another user', async () => {
@@ -682,8 +657,6 @@ describe('GraphQL Resolvers', () => {
           userId: 'user-123',
           email: 'taken@example.com'
         }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
       });
       
       const errors = (res as any).body?.singleResult?.errors;
@@ -707,8 +680,6 @@ describe('GraphQL Resolvers', () => {
           deleteUser(userId: $userId) 
         }`,
         variables: { userId: 'user-123' }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
       });
       
       const data = (res as any).body.singleResult.data;
@@ -724,109 +695,10 @@ describe('GraphQL Resolvers', () => {
           deleteUser(userId: $userId) 
         }`,
         variables: { userId: 'nonexistent-user' }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
       });
       
       const data = (res as any).body.singleResult.data;
       expect(data.deleteUser).toBe(false);
-    });
-
-    it('should return error when deleting user without authentication', async () => {
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!) { 
-          deleteUser(userId: $userId) 
-        }`,
-        variables: { userId: 'user-123' }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Authentication required');
-    });
-
-    // Mutation - changePassword
-    it('should successfully change password', async () => {
-      const mockUser = {
-        passwordhash: '$2b$10$oldhashedpassword'
-      };
-      
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
-      // Mock password update
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [] });
-      
-      // Mock bcrypt.compare to return true for current password
-      const bcrypt = require('bcrypt');
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('$2b$10$newhashedpassword');
-      
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!, $currentPassword: String!, $newPassword: String!) { 
-          changePassword(userId: $userId, currentPassword: $currentPassword, newPassword: $newPassword) 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          currentPassword: 'oldpassword',
-          newPassword: 'newpassword123'
-        }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
-      });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.changePassword).toBe(true);
-    });
-
-    it('should return error when current password is incorrect', async () => {
-      const mockUser = {
-        passwordhash: '$2b$10$oldhashedpassword'
-      };
-      
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
-      
-      // Mock bcrypt.compare to return false for incorrect password
-      const bcrypt = require('bcrypt');
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
-      
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!, $currentPassword: String!, $newPassword: String!) { 
-          changePassword(userId: $userId, currentPassword: $currentPassword, newPassword: $newPassword) 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          currentPassword: 'wrongpassword',
-          newPassword: 'newpassword123'
-        }
-      }, {
-        contextValue: { isAuthenticated: true, userId: 'user-123', email: 'john@example.com' }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Current password is incorrect');
-    });
-
-    it('should return error when changing password without authentication', async () => {
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!, $currentPassword: String!, $newPassword: String!) { 
-          changePassword(userId: $userId, currentPassword: $currentPassword, newPassword: $newPassword) 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          currentPassword: 'oldpassword',
-          newPassword: 'newpassword123'
-        }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Authentication required');
     });
   });
 
@@ -877,9 +749,7 @@ describe('GraphQL Resolvers', () => {
           userId: 'user-123',
           tagName: 'software engineering'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getContentByTag).toHaveLength(2);
@@ -914,9 +784,7 @@ describe('GraphQL Resolvers', () => {
           userId: 'user-123',
           tagName: 'nonexistent-tag'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getContentByTag).toHaveLength(0);
@@ -936,9 +804,7 @@ describe('GraphQL Resolvers', () => {
           userId: 'nonexistent-user',
           tagName: 'software engineering'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
@@ -964,9 +830,7 @@ describe('GraphQL Resolvers', () => {
           userId: 'user-123',
           tagName: 'nonexistent-tag'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getContentByTag).toHaveLength(0);
@@ -1007,9 +871,7 @@ describe('GraphQL Resolvers', () => {
           contentId: 'content-1',
           title: 'Updated Title'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateContent).toMatchObject({
@@ -1053,9 +915,7 @@ describe('GraphQL Resolvers', () => {
           type: 'tutorial',
           properties: { description: 'Updated description', difficulty: 'intermediate' }
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateContent).toMatchObject({
@@ -1088,9 +948,7 @@ describe('GraphQL Resolvers', () => {
         variables: { 
           contentId: 'content-1'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateContent).toMatchObject({
@@ -1115,9 +973,7 @@ describe('GraphQL Resolvers', () => {
           contentId: 'nonexistent-content',
           title: 'Updated Title'
         }
-      }, {
-        contextValue: { isAuthenticated: false }
-      });
+    });
       
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();

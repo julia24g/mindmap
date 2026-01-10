@@ -1,157 +1,179 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
+import { useNavigate, Link } from "react-router-dom"
+import { useForm, SubmitHandler } from "react-hook-form"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { useAuth } from "@/hooks/useAuth"
 
-export default function SignupPage() {
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  })
-  const [error, setError] = useState('')
-  const { signup } = useAuth()
+interface SignupFormInputs {
+  name: string
+  email: string
+  password: string
+  confirmPassword: string
+}
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
+  const { 
+    register, 
+    handleSubmit, 
+    formState: { errors },
+    setError
+  } = useForm<SignupFormInputs>()
+  
+  const { signUp, signInWithGoogle, loading, error } = useAuth()
+  const navigate = useNavigate()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
+  const onSubmit: SubmitHandler<SignupFormInputs> = async (data) => {
+    // Validate password match
+    if (data.password !== data.confirmPassword) {
+      setError("confirmPassword", {
+        type: "manual",
+        message: "Passwords do not match"
+      })
       return
     }
+
+    // Split name into firstName and lastName
+    const nameParts = data.name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // Sign up with Firebase and persist to database
+    const userCredential = await signUp(data.email, data.password, firstName, lastName)
     
-    try {
-      await signup({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        password: formData.password
-      })
-    } catch (err) {
-      setError('Failed to create account')
+    if (userCredential) {
+      // Successfully signed up
+      console.log("Signed up:", userCredential.user)
+      navigate("/dashboard")
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    const userCredential = await signInWithGoogle()
+    
+    if (userCredential) {
+      // Successfully signed in with Google
+      console.log("Signed in with Google:", userCredential.user)
+      navigate("/dashboard")
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-notion-bg">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-notion-text">Create your account</h1>
-          <p className="mt-2 text-notion-text-secondary">Start building your knowledge graph</p>
-        </div>
-        
-        <div className="card p-8">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-notion">
-                {error}
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-notion-text">
-                  First name
-                </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  required
-                  className="input-field mt-1"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-notion-text">
-                  Last name
-                </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  required
-                  className="input-field mt-1"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-notion-text">
-                Email address
-              </label>
-              <input
+    <Card {...props}>
+      <CardHeader>
+        <CardTitle>Create an account</CardTitle>
+        <CardDescription>
+          Enter your information below to create your account
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="name">Full Name</FieldLabel>
+              <Input 
+                id="name" 
+                type="text" 
+                placeholder="John Doe" 
+                {...register("name", { required: "Full name is required" })}
+                disabled={loading}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input
                 id="email"
-                name="email"
                 type="email"
-                required
-                className="input-field mt-1"
-                value={formData.email}
-                onChange={handleChange}
+                placeholder="m@example.com"
+                {...register("email", { 
+                  required: "Email is required",
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: "Invalid email address"
+                  }
+                })}
+                disabled={loading}
               />
-            </div>
-            
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-notion-text">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
+              <FieldDescription>
+                We&apos;ll use this to contact you. We will not share your email
+                with anyone else.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <Input 
+                id="password" 
                 type="password"
-                required
-                className="input-field mt-1"
-                value={formData.password}
-                onChange={handleChange}
+                {...register("password", { 
+                  required: "Password is required",
+                  minLength: {
+                    value: 8,
+                    message: "Password must be at least 8 characters long"
+                  }
+                })}
+                disabled={loading}
               />
-            </div>
-            
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-notion-text">
-                Confirm password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
+              <FieldDescription>
+                Must be at least 8 characters long.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="confirm-password">
+                Confirm Password
+              </FieldLabel>
+              <Input 
+                id="confirm-password" 
                 type="password"
-                required
-                className="input-field mt-1"
-                value={formData.confirmPassword}
-                onChange={handleChange}
+                {...register("confirmPassword", { 
+                  required: "Please confirm your password"
+                })}
+                disabled={loading}
               />
-            </div>
-            
-            <button
-              type="submit"
-              className="btn-primary w-full"
-            >
-              Create account
-            </button>
-          </form>
-          
-          <div className="mt-6 text-center">
-            <p className="text-sm text-notion-text-secondary">
-              Already have an account?{' '}
-              <Link to="/login" className="text-notion-primary hover:text-blue-600">
-                Sign in
-              </Link>
-            </p>
-          </div>
-        </div>
+              <FieldDescription>Please confirm your password.</FieldDescription>
+            </Field>
+            <FieldGroup>
+              <Field>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Creating Account..." : "Create Account"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                >
+                  Sign up with Google
+                </Button>
+                <FieldDescription className="px-6 text-center">
+                  Already have an account? <Link to="/login" className="underline">Sign in</Link>
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <SignupForm />
       </div>
     </div>
   )
-} 
+}

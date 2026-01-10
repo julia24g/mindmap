@@ -4,7 +4,7 @@ import { startStandaloneServer } from '@apollo/server/standalone';
 import { neo4jDriver } from './db/neo4j';
 import { typeDefs } from './schema'
 import { resolvers } from './resolvers'
-import { getAuthContext, AuthContext } from './auth'
+import './middleware/firebaseMiddleware'; // Initialize Firebase Admin
 
 const server = new ApolloServer({
     typeDefs,
@@ -23,9 +23,7 @@ void (async () => {
   const { url } = await startStandaloneServer(server, {
     listen: { port: 4000 },
     context: async ({ req }) => {
-      const authContext = getAuthContext(req.headers);
       return {
-        ...authContext,
         headers: req.headers
       };
     }

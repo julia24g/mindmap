@@ -8,6 +8,7 @@ export function mapUserFromPostgres(user: any) {
     firstName: user.firstname,
     lastName: user.lastname,
     email: user.email,
+    firebaseUid: user.firebaseuid,
     createdAt: user.createdat,
     updatedAt: user.updatedat
   };

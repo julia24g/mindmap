@@ -14,6 +14,7 @@ export const typeDefs = `#graphql
         firstName: String!
         lastName: String!
         email: String!
+        firebaseUid: String!
         createdAt: DateTime!
         updatedAt: DateTime
     }
@@ -67,12 +68,11 @@ export const typeDefs = `#graphql
             contentId: ID!
         ): Boolean
         # User management mutations
-        login(email: String!, password: String!): AuthResponse
+        login(idToken: String!): AuthResponse
         createUser(
+            idToken: String!
             firstName: String!
             lastName: String!
-            email: String!
-            password: String!
         ): AuthResponse
         updateUser(
             userId: ID!
@@ -81,10 +81,5 @@ export const typeDefs = `#graphql
             email: String
         ): User
         deleteUser(userId: ID!): Boolean
-        changePassword(
-            userId: ID!
-            currentPassword: String!
-            newPassword: String!
-        ): Boolean
     }
 `

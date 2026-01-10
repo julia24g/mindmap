@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "rootDir": "src",
     "rootDirs": ["src"],
     "outDir": "dist",
     "lib": ["es2020"],
@@ -12,6 +13,7 @@
   }
 ,
   "exclude": [
+    "__mocks__",
     "tests",
     "tests/**",
     "**/*.test.ts",

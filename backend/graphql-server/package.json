@@ -6,11 +6,10 @@
     "build": "tsc",
     "compile": "tsc",
     "start": "npm run compile && node ./dist/index.js",
+    "dev": "npm run migrate && npm run start",
     "test": "jest --testPathIgnorePatterns='dist/|tests/integration.test.ts'",
     "test:integration": "jest tests/integration.test.ts --runInBand --testTimeout=120000",
-    "pgmigrate:up": "node-pg-migrate up --migrations-dir ../../database/migrations/postgres --database-url \"$DATABASE_URL\"",
-    "pgmigrate:down": "node-pg-migrate down --migrations-dir ../../database/migrations/postgres --database-url \"$DATABASE_URL\"",
-    "migrate": "npm run pgmigrate:up"
+    "migrate": "node scripts/migrate.js"
   },
   "keywords": [],
   "author": "",
@@ -28,8 +27,7 @@
     "graphql": "^16.11.0",
     "graphql-scalars": "^1.24.2",
     "jsonwebtoken": "^9.0.2",
-    "neo4j-driver": "^5.28.1",
-    "pg": "^8.16.0"
+    "neo4j-driver": "^5.28.1"
   },
   "devDependencies": {
     "@testcontainers/neo4j": "^11.7.1",
@@ -44,6 +42,7 @@
     "jest-mock-extended": "^4.0.0-beta1",
     "nock": "^14.0.5",
     "node-pg-migrate": "^8.0.4",
+    "pg": "^8.16.3",
     "supertest": "^7.1.1",
     "testcontainers": "^11.7.1",
     "ts-jest": "^29.3.4",

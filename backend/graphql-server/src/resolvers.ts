@@ -3,12 +3,10 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pgPool } from './db/postgres';
 import { neo4jDriver } from './db/neo4j';
 import { GraphQLError } from 'graphql';
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { requireAuth, AuthContext } from './auth';
 import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils';
+import * as admin from 'firebase-admin';
 
-// JWT secret - in production, this should be in environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export const resolvers = {
@@ -16,10 +14,9 @@ export const resolvers = {
   JSON: GraphQLJSON,
   Query: {
     // User management queries
-    async getUser(_, { userId }, context: AuthContext) {
-      requireAuth(context);
+    async getUser(_, { userId }) {
       const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users WHERE userId = $1',
+        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users WHERE userId = $1',
         [userId]
       );
       if (!result.rows.length) {
@@ -30,7 +27,7 @@ export const resolvers = {
     },
     async getUserByEmail(_, { email }) {
       const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users WHERE email = $1',
+        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users WHERE email = $1',
         [email]
       );
       if (!result.rows.length) {
@@ -41,7 +38,7 @@ export const resolvers = {
     },
     async getAllUsers() {
       const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, createdAt, updatedAt FROM users ORDER BY createdAt DESC'
+        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users ORDER BY createdAt DESC'
       );
       
       return mapUsersFromPostgres(result.rows);
@@ -195,75 +192,100 @@ export const resolvers = {
   },
   Mutation: {
     // User management mutations
-    async login(_, { email, password }) {
-      // Get user with password hash
+    async login(_, { idToken }) {
+      // Verify Firebase ID token
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        throw new GraphQLError('Invalid Firebase ID token');
+      }
+
+      const firebaseUid = decodedToken.uid;
+
+      // Get user by firebaseUid
       const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, passwordHash, createdAt, updatedAt FROM users WHERE email = $1',
-        [email]
+        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users WHERE firebaseUid = $1',
+        [firebaseUid]
       );
       
       if (!result.rows.length) {
-        throw new GraphQLError('Invalid email or password');
+        throw new GraphQLError('User not found. Please create an account first.');
       }
       
       const user = result.rows[0];
       
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.passwordhash);
-      if (!isValidPassword) {
-        throw new GraphQLError('Invalid email or password');
-      }
-      
+      // Generate JWT token for your app
       const token = jwt.sign(
-        { userId: user.userid, email: user.email },
+        { userId: user.userid, email: user.email, firebaseUid: firebaseUid },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
       
-      // Remove password hash from response and map column names
-      const { passwordhash, ...userWithoutPassword } = user;
-      const mappedUser = mapUserFromPostgres(userWithoutPassword);
+      const mappedUser = mapUserFromPostgres(user);
       return {
         user: mappedUser,
         token
       };
     },
-    async createUser(_, { firstName, lastName, email, password }) {
-      // Check if user already exists
-      const existingUser = await pgPool.query(
+    async createUser(_, { idToken, firstName, lastName }) {
+      // Verify Firebase ID token
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+      } catch (error) {
+        throw new GraphQLError('Invalid Firebase ID token');
+      }
+
+      const firebaseUid = decodedToken.uid;
+      const email = decodedToken.email;
+
+      if (!email) {
+        throw new GraphQLError('Email not found in Firebase token');
+      }
+
+      // Check if user already exists by firebaseUid
+      const existingUserByUid = await pgPool.query(
+        'SELECT 1 FROM users WHERE firebaseUid = $1',
+        [firebaseUid]
+      );
+      
+      if (existingUserByUid.rowCount > 0) {
+        throw new GraphQLError('User with this Firebase UID already exists');
+      }
+
+      // Check if user already exists by email
+      const existingUserByEmail = await pgPool.query(
         'SELECT 1 FROM users WHERE email = $1',
         [email]
       );
       
-      if (existingUser.rowCount > 0) {
+      if (existingUserByEmail.rowCount > 0) {
         throw new GraphQLError('User with this email already exists');
       }
       
-      // Hash password
-      const saltRounds = 10;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
-      
       // Insert new user
       const result = await pgPool.query(
-        'INSERT INTO users (firstName, lastName, email, passwordHash) VALUES ($1, $2, $3, $4) RETURNING userId, firstName, lastName, email, createdAt, updatedAt',
-        [firstName, lastName, email, passwordHash]
+        'INSERT INTO users (firstName, lastName, email, firebaseUid) VALUES ($1, $2, $3, $4) RETURNING userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt',
+        [firstName, lastName, email, firebaseUid]
       );
       
       const user = result.rows[0];
       const mappedUser = mapUserFromPostgres(user);
-      // Generate JWT token
+      
+      // Generate JWT token for your app
       const token = jwt.sign(
-        { userId: user.userid, email: user.email },
+        { userId: user.userid, email: user.email, firebaseUid: firebaseUid },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
+      
       return {
         user: mappedUser,
         token
       };
     },
-    async updateUser(_, { userId, firstName, lastName, email }, context: AuthContext) {
-      requireAuth(context);
+    async updateUser(_, { userId, firstName, lastName, email }) {
       
       // Check if user exists
       const existingUser = await pgPool.query(
@@ -327,8 +349,7 @@ export const resolvers = {
       // Map PostgreSQL column names to GraphQL field names
       return mapUserFromPostgres(user);
     },
-    async deleteUser(_, { userId }, context: AuthContext) {
-      requireAuth(context);
+    async deleteUser(_, { userId }) {
       
       // Check if user exists
       const existingUser = await pgPool.query(
@@ -364,39 +385,6 @@ export const resolvers = {
       );
       
       return result.rowCount > 0;
-    },
-    async changePassword(_, { userId, currentPassword, newPassword }, context: AuthContext) {
-      requireAuth(context);
-      
-      // Get user with password hash
-      const result = await pgPool.query(
-        'SELECT passwordHash FROM users WHERE userId = $1',
-        [userId]
-      );
-      
-      if (!result.rows.length) {
-        throw new GraphQLError('User not found');
-      }
-      
-      const user = result.rows[0];
-      
-      // Verify current password
-      const isValidPassword = await bcrypt.compare(currentPassword, user.passwordhash);
-      if (!isValidPassword) {
-        throw new GraphQLError('Current password is incorrect');
-      }
-      
-      // Hash new password
-      const saltRounds = 10;
-      const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
-      
-      // Update password
-      await pgPool.query(
-        'UPDATE users SET passwordHash = $1, updatedAt = NOW() WHERE userId = $2',
-        [newPasswordHash, userId]
-      );
-      
-      return true;
     },
     // Add new content, generate tags using LLM, insert into Postgres and Neo4j
     async addContent(_, { userId, title, type, properties }) {

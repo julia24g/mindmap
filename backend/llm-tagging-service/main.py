@@ -15,7 +15,7 @@ model_name = "Qwen/Qwen2.5-3B-Instruct"
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 if not HF_TOKEN:
-    raise RuntimeError("HF_TOKEN not found in environment. Please set it in .env")
+    raise RuntimeError("HF_TOKEN not found in environment. Please set it as an environment variable or in .env file")
 
 HF_API_URL = f"https://api-inference.huggingface.co/models/{model_name}"
 

@@ -1,88 +1,135 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
+import { useNavigate, Link } from "react-router-dom"
+import { useForm, SubmitHandler } from "react-hook-form"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useAuth } from "@/hooks/useAuth"
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const { login } = useAuth()
+interface LoginFormInputs {
+  email: string
+  password: string
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+export function LoginForm({
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<"div">) {
+  const { 
+    register, 
+    handleSubmit, 
+    formState: { errors }
+  } = useForm<LoginFormInputs>()
+  
+  const { signIn, signInWithGoogle, loading } = useAuth()
+  const navigate = useNavigate()
+
+  const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
+    const userCredential = await signIn(data.email, data.password)
     
-    try {
-      await login({ email, password })
-    } catch (err) {
-      setError('Invalid email or password')
+    if (userCredential) {
+      // Successfully signed in
+      console.log("Signed in:", userCredential.user)
+      navigate("/dashboard")
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    const userCredential = await signInWithGoogle()
+    
+    if (userCredential) {
+      // Successfully signed in with Google
+      console.log("Signed in with Google:", userCredential.user)
+      navigate("/dashboard")
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-notion-bg">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-notion-text">Welcome back</h1>
-          <p className="mt-2 text-notion-text-secondary">Sign in to your MindMap account</p>
-        </div>
-        
-        <div className="card p-8">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-notion">
-                {error}
+    <div className={cn("flex flex-col gap-6", className)} {...props}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardDescription>
+            Enter your email below to login to your account
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <div className="flex flex-col gap-6">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="m@example.com"
+                  {...register("email", { 
+                    required: "Email is required",
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: "Invalid email address"
+                    }
+                  })}
+                  disabled={loading}
+                />
               </div>
-            )}
-            
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-notion-text">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="input-field mt-1"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <div className="grid gap-2">
+                <div className="flex items-center">
+                  <Label htmlFor="password">Password</Label>
+                  <a
+                    href="#"
+                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
+                  >
+                    Forgot your password?
+                  </a>
+                </div>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  {...register("password", { 
+                    required: "Password is required"
+                  })}
+                  disabled={loading}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Logging in..." : "Login"}
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+              >
+                Login with Google
+              </Button>
             </div>
-            
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-notion-text">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="input-field mt-1"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            
-            <button
-              type="submit"
-              className="btn-primary w-full"
-            >
-              Sign in
-            </button>
-          </form>
-          
-          <div className="mt-6 text-center">
-            <p className="text-sm text-notion-text-secondary">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-notion-primary hover:text-blue-600">
+            <div className="mt-4 text-center text-sm">
+              Don&apos;t have an account?{" "}
+              <Link to="/signup" className="underline underline-offset-4">
                 Sign up
               </Link>
-            </p>
-          </div>
-        </div>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <LoginForm />
       </div>
     </div>
   )
-} 
+}

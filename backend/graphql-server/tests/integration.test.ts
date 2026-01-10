@@ -5,6 +5,24 @@ import { Neo4jContainer } from '@testcontainers/neo4j';
 import axios from 'axios';
 import nock from 'nock';
 
+// Mock firebase-admin for integration tests
+jest.mock('firebase-admin', () => {
+  const mockVerifyIdToken = jest.fn().mockResolvedValue({
+    uid: 'test-firebase-uid',
+    email: 'test@example.com'
+  });
+  
+  return {
+    auth: jest.fn(() => ({
+      verifyIdToken: mockVerifyIdToken
+    })),
+    credential: {
+      cert: jest.fn(() => ({}))
+    },
+    initializeApp: jest.fn()
+  };
+});
+
 describe('Integration Tests', () => {
   let server: ApolloServer | undefined;
   let url: string;
@@ -14,7 +32,6 @@ describe('Integration Tests', () => {
 
   let pgPool: any;
   let neo4jDriver: any;
-  let getAuthContext: any;
   let typeDefs: any;
   let resolvers: any;
 
@@ -43,7 +60,6 @@ describe('Integration Tests', () => {
 
     ({ typeDefs } = await import('../src/schema'));
     ({ resolvers } = await import('../src/resolvers'));
-    ({ getAuthContext } = await import('../src/auth'));
 
     ({ pgPool } = await import('../src/db/postgres'));
     ({ neo4jDriver } = await import('../src/db/neo4j'));
@@ -73,11 +89,7 @@ describe('Integration Tests', () => {
     });
 
     const started = await startStandaloneServer(server, {
-      listen: { port: 4001 },
-      context: async ({ req }) => {
-        const authContext = getAuthContext(req.headers);
-        return { ...authContext, headers: req.headers };
-      },
+      listen: { port: 4001 }
     });
 
     url = started.url;
@@ -155,18 +167,21 @@ describe('Integration Tests', () => {
       .reply(200, { suggested_tags: ['alpha', 'beta'] });
 
       const createUserMutation = `
-        mutation CreateUser($firstName: String!, $lastName: String!, $email: String!, $password: String!) {
-          createUser(firstName: $firstName, lastName: $lastName, email: $email, password: $password) {
+        mutation CreateUser($idToken: String!, $firstName: String!, $lastName: String!) {
+          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) {
             user { userId }
             token
           }
         }
       `;
 
-      const email = `graph-test-${Date.now()}@example.com`;
       const createResp = await postGraphQL({
         query: createUserMutation,
-        variables: { firstName: 'Graph', lastName: 'User', email, password: 'passw0rd' },
+        variables: { 
+          idToken: 'mock-firebase-token',
+          firstName: 'Graph', 
+          lastName: 'User'
+        },
       });
       const userId = createResp.data.data.createUser.user.userId;
 
