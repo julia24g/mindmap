@@ -8,3 +8,5 @@ httpx
 pytest-asyncio
 python-dotenv
 requests-toolbelt
+huggingface_hub
+openai

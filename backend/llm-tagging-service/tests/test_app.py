@@ -47,7 +47,7 @@ class TestTagInput:
 class TestFetchTagsFromGraphQL:
     """Test the GraphQL tag fetching functionality"""
     
-    @patch('main.client.execute')
+    @patch('main.graphql_client.execute')
     def test_fetch_tags_success(self, mock_execute):
         """Test successful tag fetching from GraphQL"""
         mock_execute.return_value = {"allTags": ["tag1", "tag2", "tag3"]}
@@ -57,7 +57,7 @@ class TestFetchTagsFromGraphQL:
         assert result == ["tag1", "tag2", "tag3"]
         mock_execute.assert_called_once()
     
-    @patch('main.client.execute')
+    @patch('main.graphql_client.execute')
     def test_fetch_tags_with_limit(self, mock_execute):
         """Test tag fetching with custom limit"""
         mock_execute.return_value = {"allTags": ["tag1"]}
@@ -69,7 +69,7 @@ class TestFetchTagsFromGraphQL:
         call_args = mock_execute.call_args
         assert call_args[1]['variable_values']['limit'] == 1
     
-    @patch('main.client.execute')
+    @patch('main.graphql_client.execute')
     def test_fetch_tags_graphql_error(self, mock_execute):
         """Test handling of GraphQL errors"""
         mock_execute.side_effect = Exception("GraphQL connection failed")
@@ -83,7 +83,7 @@ class TestSuggestTags:
     @patch('main.tagger')
     def test_suggest_tags_success(self, mock_tagger):
         """Test successful tag suggestion"""
-        mock_tagger.return_value = [{"generated_text": "Tags: machine-learning, ai, conference"}]
+        mock_tagger.return_value = "Tags: machine-learning, ai, conference"
         
         result = suggest_tags("ML conference", sample_existing_tags)
         
@@ -93,7 +93,7 @@ class TestSuggestTags:
     @patch('main.tagger')
     def test_suggest_tags_with_existing_tags(self, mock_tagger):
         """Test that existing tags are preferred when relevant"""
-        mock_tagger.return_value = [{"generated_text": "Tags: machine-learning, ai"}]
+        mock_tagger.return_value = "Tags: machine-learning, ai"
         
         result = suggest_tags("AI conference", sample_existing_tags)
         
@@ -103,7 +103,7 @@ class TestSuggestTags:
     @patch('main.tagger')
     def test_suggest_tags_empty_response(self, mock_tagger):
         """Test handling of empty LLM response"""
-        mock_tagger.return_value = [{"generated_text": "Tags:"}]
+        mock_tagger.return_value = "Tags:"
         
         result = suggest_tags("Test event", sample_existing_tags)
         
@@ -216,14 +216,14 @@ class TestDuplicateContentHandling:
 class TestIntegration:
     """Integration tests that test the full flow"""
     
-    @patch('main.client.execute')
+    @patch('main.graphql_client.execute')
     @patch('main.tagger')
     def test_full_integration_success(self, mock_tagger, mock_execute):
         """Test the complete flow from API call to response"""
         # Mock GraphQL response
         mock_execute.return_value = {"allTags": ["existing-tag"]}
         # Mock LLM response
-        mock_tagger.return_value = [{"generated_text": "Tags: existing-tag, new-tag"}]
+        mock_tagger.return_value = "Tags: existing-tag, new-tag"
         
         response = client.post("/suggest-tags", json=sample_event.model_dump())
         

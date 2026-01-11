@@ -2,6 +2,7 @@ import axios from 'axios';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pgPool } from './db/postgres';
 import { neo4jDriver } from './db/neo4j';
+import neo4j from 'neo4j-driver';
 import { GraphQLError } from 'graphql';
 import jwt from 'jsonwebtoken';
 import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils';
@@ -140,12 +141,13 @@ export const resolvers = {
       }
     },
     // Get all tags from Neo4j
-    async get_all_tags() {
+    async allTags(_, { limit }) {
       const session = neo4jDriver.session();
       try {
-        const result = await session.run(
-          'MATCH (t:Tag) RETURN t.name AS name ORDER BY t.popularity'
-        );
+        const query = limit 
+          ? 'MATCH (t:Tag) RETURN t.name AS name ORDER BY t.popularity LIMIT $limit'
+          : 'MATCH (t:Tag) RETURN t.name AS name ORDER BY t.popularity';
+        const result = await session.run(query, limit ? { limit: neo4j.int(limit) } : {});
         return result.records.map(record => record.get('name'));
       } finally {
         await session.close();
@@ -387,17 +389,18 @@ export const resolvers = {
       return result.rowCount > 0;
     },
     // Add new content, generate tags using LLM, insert into Postgres and Neo4j
-    async addContent(_, { userId, title, type, properties }) {
-      // 0. Ensure user exists in Postgres users table
+    async addContent(_, { firebaseUid, title, type, properties }) {
+      // 0. Look up user by Firebase UID and get internal userId
       const userResult = await pgPool.query(
-        'SELECT 1 FROM users WHERE userId = $1', [userId]
+        'SELECT userid FROM users WHERE firebaseuid = $1', [firebaseUid]
       );
       if (userResult.rowCount === 0) {
         throw new GraphQLError('User does not exist');
       }
+      const userId = userResult.rows[0].userid;
       // 1. Insert content into Postgres
       const insertResult = await pgPool.query(
-        'INSERT INTO contents (userId, title, type, properties) VALUES ($1, $2, $3, $4) RETURNING *',
+        'INSERT INTO contents (userid, title, type, properties) VALUES ($1, $2, $3, $4) RETURNING *',
         [userId, title, type, properties]
       );
       const content = insertResult.rows[0];

@@ -67,7 +67,7 @@ describe('Integration Tests', () => {
     try {
       const fs = await import('fs/promises');
       const path = await import('path');
-      const sqlPath = path.join(__dirname, '..', '..', '..', 'database', 'postgres-init.sql');
+      const sqlPath = path.join(__dirname, '..', 'database', 'postgres-init.sql');
       const sql = await fs.readFile(sqlPath, 'utf8');
       await pgPool.query(sql);
     } catch (e) {
@@ -184,19 +184,20 @@ describe('Integration Tests', () => {
         },
       });
       const userId = createResp.data.data.createUser.user.userId;
+      const firebaseUid = 'test-firebase-uid'; // From the mocked Firebase token
 
       const addContentMutation = `
-        mutation AddContent($userId: ID!, $title: String!, $type: String, $properties: JSON) {
-          addContent(userId: $userId, title: $title, type: $type, properties: $properties) {
+        mutation AddContent($firebaseUid: String!, $title: String!, $type: String, $properties: JSON) {
+          addContent(firebaseUid: $firebaseUid, title: $title, type: $type, properties: $properties) {
             contentId
           }
         }
       `;
 
-        const addResp1 = await postGraphQL({ query: addContentMutation, variables: { userId, title: 'First', type: 'note', properties: { description: 'd1' } } });
+        const addResp1 = await postGraphQL({ query: addContentMutation, variables: { firebaseUid, title: 'First', type: 'note', properties: { description: 'd1' } } });
         const contentId1 = addResp1.data.data.addContent.contentId;
 
-        const addResp2 = await postGraphQL({ query: addContentMutation, variables: { userId, title: 'Second', type: 'note', properties: { description: 'd2' } } });
+        const addResp2 = await postGraphQL({ query: addContentMutation, variables: { firebaseUid, title: 'Second', type: 'note', properties: { description: 'd2' } } });
         const contentId2 = addResp2.data.data.addContent.contentId;
 
       const getGraphQuery = `

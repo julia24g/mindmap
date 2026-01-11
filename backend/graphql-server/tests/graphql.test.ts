@@ -192,8 +192,8 @@ describe('GraphQL Resolvers', () => {
   // Mutation - addContent
   it('should successfully add content and create tags/relationships in Neo4j when userId exists', async () => {
     // Mock Postgres responses for both queries
-    // First call: Check if user exists
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userId: '1' }] });
+    // First call: Look up user by firebaseUid
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
     // Second call: Insert content and return the created content
     mockPgQuery.mockResolvedValueOnce({ 
       rowCount: 1, 
@@ -211,8 +211,8 @@ describe('GraphQL Resolvers', () => {
     neo4jSessionMock.run.mockResolvedValueOnce({ records: [{ get: () => '1' }] });
 
     const res = await server.executeOperation({
-      query: `mutation($userId: ID!, $title: String!) { addContent(userId: $userId, title: $title) { contentId title } }`,
-      variables: { userId: '1', title: 'New Content' }
+      query: `mutation($firebaseUid: String!, $title: String!) { addContent(firebaseUid: $firebaseUid, title: $title) { contentId title } }`,
+      variables: { firebaseUid: 'test-firebase-uid', title: 'New Content' }
     });
     
     const data = (res as any).body.singleResult.data;
@@ -226,8 +226,8 @@ describe('GraphQL Resolvers', () => {
     mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
     const res = await server.executeOperation({
-      query: `mutation($userId: ID!, $title: String!) { addContent(userId: $userId, title: $title) { contentId title } }`,
-      variables: { userId: 'nonexistent-user', title: 'New Content' }
+      query: `mutation($firebaseUid: String!, $title: String!) { addContent(firebaseUid: $firebaseUid, title: $title) { contentId title } }`,
+      variables: { firebaseUid: 'nonexistent-firebase-uid', title: 'New Content' }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();

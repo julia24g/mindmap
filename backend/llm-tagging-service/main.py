@@ -2,42 +2,50 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, validator
 from typing import List, Optional
 import os
-import requests
 from dotenv import load_dotenv
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
+from huggingface_hub import InferenceClient
+from openai import OpenAI
 
 # Initialize FastAPI
 app = FastAPI()
 load_dotenv()
 
-model_name = "Qwen/Qwen2.5-3B-Instruct"
+model_name = "meta-llama/Llama-3.2-3B-Instruct"
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 if not HF_TOKEN:
     raise RuntimeError("HF_TOKEN not found in environment. Please set it as an environment variable or in .env file")
 
-HF_API_URL = f"https://api-inference.huggingface.co/models/{model_name}"
+# Initialize Hugging Face Inference Client
+ai_client = OpenAI(
+    base_url="https://router.huggingface.co/v1",
+    api_key=os.environ["HF_TOKEN"],
+)
 
-def tagger(prompt: str, max_new_tokens: int = 20):
-    """Call Hugging Face Inference API for text generation.
+def tagger(prompt: str, max_new_tokens: int = 20) -> str:
+    """Call Hugging Face Inference API for text generation using chat completions.
 
-    Returns the raw JSON response (usually a list of generations).
+    Returns the generated text as a string.
     """
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {
-        "inputs": prompt,
-        "parameters": {"max_new_tokens": max_new_tokens},
-    }
-    resp = requests.post(HF_API_URL, headers=headers, json=payload)
-    resp.raise_for_status()
-    return resp.json()
+    completion = ai_client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        max_tokens=max_new_tokens,
+    )
+    return completion.choices[0].message.content
 
 # GraphQL setup
 GRAPHQL_ENDPOINT = os.getenv("GRAPHQL_ENDPOINT")
 
 transport = RequestsHTTPTransport(url=GRAPHQL_ENDPOINT, verify=True, retries=3)
-client = Client(transport=transport, fetch_schema_from_transport=False)
+graphql_client = Client(transport=transport, fetch_schema_from_transport=False)
 
 # Defines expected input structure
 class TagInput(BaseModel):
@@ -60,16 +68,16 @@ def fetch_tags_from_graphql(limit=500) -> List[str]:
         }
         """
     )
-    result = client.execute(query, variable_values={"limit": limit}) # Sends query to GraphQL server
+    result = graphql_client.execute(query, variable_values={"limit": int(limit)}) # Sends query to GraphQL server
     return result["allTags"]
 
 def suggest_tags(text: str, existing_tags: List[str]) -> List[str]:
+    existing_tags_text = f"And this list of existing tags:\n{', '.join(existing_tags)}\n\n" if existing_tags else ""
     prompt = (
         f"Given this event:\n\n{text}\n\n"
-        f"And this list of existing tags:\n{', '.join(existing_tags)}\n\n"
+        f"{existing_tags_text}"
         "Suggest 1 to 5 relevant tags for the event. "
-        "Prefer tags from the list if they fit well. "
-        "If none apply, create new concise lowercase tags. "
+        f"{'Prefer tags from the list if they fit well. If none apply, create new concise lowercase tags. ' if existing_tags else 'Create new concise lowercase tags. '}"
         "Do not force tags—only suggest as many as are truly relevant and unique. "
         "Avoid redundant or highly similar tags. "
         "If the event is a book, podcast, article, movie, or any content that can be found online, "
@@ -77,8 +85,13 @@ def suggest_tags(text: str, existing_tags: List[str]) -> List[str]:
         "Return the tags as a comma-separated list.\n"
         "Tags:"
     )
-    result = tagger(prompt, max_new_tokens=20, do_sample=True)[0]["generated_text"]
-    lines = result.split("Tags:")[-1].strip().split(",")
+    result = tagger(prompt, max_new_tokens=50)
+    # Extract tags from the response
+    if "Tags:" in result:
+        lines = result.split("Tags:")[-1].strip().split(",")
+    else:
+        # Fallback: try to extract comma-separated values from the response
+        lines = result.strip().split(",")
     return [tag.strip() for tag in lines if tag.strip()]
 
 @app.post("/suggest-tags")

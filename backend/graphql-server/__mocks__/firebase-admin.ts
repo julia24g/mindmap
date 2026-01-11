@@ -1,7 +1,7 @@
 // __mocks__/firebase-admin.ts
 import { jest } from '@jest/globals';
 
-export const mockVerifyIdToken = jest.fn();
+export const mockVerifyIdToken = jest.fn<() => Promise<{ uid: string; email?: string }>>();
 
 export const auth = jest.fn().mockImplementation(() => ({
   verifyIdToken: mockVerifyIdToken,

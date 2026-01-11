@@ -3,13 +3,13 @@ import { gql, useMutation } from "@apollo/client";
 // Define the GraphQL mutation
 const ADD_CONTENT = gql`
   mutation AddContent(
-    $userId: ID!
+    $firebaseUid: String!
     $title: String!
     $type: String
     $properties: JSON
   ) {
     addContent(
-      userId: $userId
+      firebaseUid: $firebaseUid
       title: $title
       type: $type
       properties: $properties
@@ -26,7 +26,7 @@ const ADD_CONTENT = gql`
 
 // TypeScript types for the mutation
 export interface AddContentInput {
-  userId: string;
+  firebaseUid: string;
   title: string;
   type?: string;
   properties?: Record<string, any>;
@@ -45,7 +45,6 @@ export interface AddContentData {
   addContent: Content;
 }
 
-// Custom hook to use the addContent mutation
 export function useAddContent() {
   const [addContent, { data, loading, error }] = useMutation<
     AddContentData,

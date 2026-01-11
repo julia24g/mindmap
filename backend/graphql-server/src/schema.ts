@@ -44,7 +44,7 @@ export const typeDefs = `#graphql
     type Query {
         get_user_graph(userId: ID!): UserGraph
         content(contentId: ID!): Content
-        get_all_tags: [Tag!]!
+        allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
         # User management queries
         getUser(userId: ID!): User
@@ -53,7 +53,7 @@ export const typeDefs = `#graphql
     }
     type Mutation {
         addContent(
-            userId: ID!
+            firebaseUid: String!
             title: String!
             type: String
             properties: JSON

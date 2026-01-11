@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAddContent } from "@/api/addContent"
+import { useAuthContext } from "@/contexts/AuthContext"
 
 enum ContentType {
   book = "book",
@@ -36,22 +37,25 @@ interface IFormInput {
 export default function ContentForm() {
   const { register, handleSubmit, reset } = useForm<IFormInput>()
   const { addContent, loading } = useAddContent()
+  const { currentUser } = useAuthContext()
 
   const onSubmit: SubmitHandler<IFormInput> = async (data) => {
     try {
-      // TODO: Get actual userId from auth context
-      const userId = "1" // Replace with actual user ID
+      if (!currentUser) {
+        throw new Error("User not authenticated")
+      }
+      const firebaseUid = currentUser?.uid
       
       await addContent({
         variables: {
-          userId,
+          firebaseUid,
           title: data.title,
           type: data.type,
         },
       })
       
       console.log("Content added successfully!")
-      reset() // Reset form after successful submission
+      reset()
     } catch (err) {
       console.error("Error adding content:", err)
     }
