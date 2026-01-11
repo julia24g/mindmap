@@ -54,12 +54,13 @@ export const resolvers = {
       return mapContentFromPostgres(result.rows[0]);
     },
     // Get all nodes and edges in user knowledge graph
-    async get_user_graph(_, { userId }) {
-      // Check if user exists in Postgres
-      const userResult = await pgPool.query('SELECT 1 FROM users WHERE userId = $1', [userId]);
+    async get_user_graph(_, { firebaseUid }) {
+      // Check if user exists in Postgres and get their userId
+      const userResult = await pgPool.query('SELECT userId FROM users WHERE firebaseUid = $1', [firebaseUid]);
       if (userResult.rowCount === 0) {
         throw new GraphQLError('User not found');
       }
+      const userId = userResult.rows[0].userid;
       const session = neo4jDriver.session();
       try {
         // Get all tags that describe content for this user and their content nodes

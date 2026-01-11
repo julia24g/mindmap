@@ -96,23 +96,23 @@ describe('GraphQL Resolvers', () => {
   });
 
   // Query - get_user_graph
-  it('should return an error when userId does not exist in Neo4j/Postgres', async () => {
+  it('should return an error when firebaseUid does not exist in Neo4j/Postgres', async () => {
     // Mock Postgres to return no user
     mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
     neo4jSessionMock.run.mockResolvedValueOnce({ records: [] });
 
     const res = await server.executeOperation({
-      query: `query($userId: ID!) { get_user_graph(userId: $userId) { nodes { id } edges { from to } } }`,
-      variables: { userId: 'nonexistent-user' }
+      query: `query($firebaseUid: String!) { get_user_graph(firebaseUid: $firebaseUid) { nodes { id } edges { from to } } }`,
+      variables: { firebaseUid: 'nonexistent-firebase-uid' }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
     expect(errors?.[0].message).toMatch(/User not found/);
   });
 
-  it('should return all relevant nodes and edges for a userId that exists', async () => {
-    // Mock Postgres to return a user
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userId: '1', firstName: 'TestUser' }] });
+  it('should return all relevant nodes and edges for a firebaseUid that exists', async () => {
+    // Mock Postgres to return a user with userId when looking up by firebaseUid
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
     
     // Mock Neo4j to return records for nodes and edges in the expected structure
     neo4jSessionMock.run
@@ -154,8 +154,8 @@ describe('GraphQL Resolvers', () => {
       });
 
     const res = await server.executeOperation({
-      query: `query($userId: ID!) { get_user_graph(userId: $userId) { nodes { id label contentId name } edges { from to type } } }`,
-      variables: { userId: '1' }
+      query: `query($firebaseUid: String!) { get_user_graph(firebaseUid: $firebaseUid) { nodes { id label contentId name } edges { from to type } } }`,
+      variables: { firebaseUid: 'test-firebase-uid' }
     });
     
     const data = (res as any).body.singleResult.data;

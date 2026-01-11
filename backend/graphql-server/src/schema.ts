@@ -42,7 +42,7 @@ export const typeDefs = `#graphql
         token: String!
     }
     type Query {
-        get_user_graph(userId: ID!): UserGraph
+        get_user_graph(firebaseUid: String!): UserGraph
         content(contentId: ID!): Content
         allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!

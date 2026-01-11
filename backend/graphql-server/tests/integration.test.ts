@@ -201,15 +201,15 @@ describe('Integration Tests', () => {
         const contentId2 = addResp2.data.data.addContent.contentId;
 
       const getGraphQuery = `
-        query GetUserGraph($userId: ID!) {
-          get_user_graph(userId: $userId) {
+        query GetUserGraph($firebaseUid: String!) {
+          get_user_graph(firebaseUid: $firebaseUid) {
             nodes { id label contentId name }
             edges { from to type }
           }
         }
       `;
 
-      const graphResp = await axios.post(url, { query: getGraphQuery, variables: { userId } });
+      const graphResp = await axios.post(url, { query: getGraphQuery, variables: { firebaseUid } });
       const graph = graphResp.data.data.get_user_graph;
       expect(graph).toBeDefined();
       expect(Array.isArray(graph.nodes)).toBe(true);
