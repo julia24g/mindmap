@@ -10,11 +10,7 @@ import {
 import { auth } from '@/lib/firebase';
 import { useMutation } from '@apollo/client';
 import { CREATE_USER, CreateUserData, CreateUserInput } from '@/api/createUser';
-
-export interface AuthError {
-  code: string;
-  message: string;
-}
+import { AuthError } from '@/types';
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);

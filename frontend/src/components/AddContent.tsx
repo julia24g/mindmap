@@ -6,14 +6,18 @@ import {
 import { Button } from "@/components/ui/button"
 import ContentForm from "./ContentForm"
 
-export default function AddContent() {
+interface AddContentProps {
+  onContentAdded?: () => void;
+}
+
+export default function AddContent({ onContentAdded }: AddContentProps) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="outline">Show Dialog</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
-        <ContentForm />
+        <ContentForm onContentAdded={onContentAdded} />
       </AlertDialogContent>
     </AlertDialog>
   )

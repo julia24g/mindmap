@@ -34,7 +34,11 @@ interface IFormInput {
   type: ContentType
 }
 
-export default function ContentForm() {
+interface ContentFormProps {
+  onContentAdded?: () => void;
+}
+
+export default function ContentForm({ onContentAdded }: ContentFormProps) {
   const { register, handleSubmit, reset } = useForm<IFormInput>()
   const { addContent, loading } = useAddContent()
   const { currentUser } = useAuthContext()
@@ -56,6 +60,11 @@ export default function ContentForm() {
       
       console.log("Content added successfully!")
       reset()
+      
+      // Refetch the graph after adding content
+      if (onContentAdded) {
+        onContentAdded();
+      }
     } catch (err) {
       console.error("Error adding content:", err)
     }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   forceSimulation,
   forceLink,
@@ -23,12 +23,11 @@ import '@xyflow/react/dist/style.css';
 import collide from '@/util/collision';
 import AddContent from "@/components/AddContent";
 import { TypographyH1 } from "@/typography/TypographyH1";
+import { toReactFlowFormat } from '@/util/graphTransform';
+import { useGetUserGraph } from '@/api/getUserGraph';
+import { useAuthContext } from '@/contexts/AuthContext';
 
-const initialNodes: Node[] = [
-  { id: 'n1', data: { label: 'Node 1' }, position: { x: 0, y: 0 } },
-  { id: 'n2', data: { label: 'Node 2' }, position: { x: 0, y: 0 } },
-];
-const initialEdges: Edge[] = [{ id: 'n1-n2', source: 'n1', target: 'n2' }];
+
 
 const simulation = forceSimulation()
   .force('charge', forceManyBody().strength(-1000))
@@ -74,7 +73,7 @@ const useLayoutedElements = () => {
   }, [initialized, getNodes, getEdges, setNodes, fitView]);
 };
 
-const LayoutFlow = () => {
+const LayoutFlow = ({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) => {
   const [nodes, , ] = useNodesState(initialNodes);
   const [edges, , ] = useEdgesState(initialEdges);
 
@@ -93,13 +92,31 @@ const LayoutFlow = () => {
 };
 
 export default function DashboardPage() {
+  const { currentUser } = useAuthContext();
+  const { graph, loading, error, refetch } = useGetUserGraph(currentUser?.uid || '');
+
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+    if (!graph) {
+      return { nodes: [], edges: [] };
+    }
+    return toReactFlowFormat(graph);
+  }, [graph]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error loading graph: {error.message}</div>;
+  }
+
   return (
     <>
       <TypographyH1>Dashboard</TypographyH1>
-      <AddContent />
+      <AddContent onContentAdded={() => refetch()} />
       <div style={{ width: '100vw', height: '100vh' }}>
         <ReactFlowProvider>
-          <LayoutFlow />
+          <LayoutFlow initialNodes={initialNodes} initialEdges={initialEdges} />
         </ReactFlowProvider>
       </div>
     </>

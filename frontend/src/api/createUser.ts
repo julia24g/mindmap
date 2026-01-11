@@ -1,4 +1,5 @@
 import { gql } from "@apollo/client";
+import { User } from "@/types";
 
 // Define the GraphQL mutation
 export const CREATE_USER = gql`
@@ -31,16 +32,6 @@ export interface CreateUserInput {
   idToken: string;
   firstName: string;
   lastName: string;
-}
-
-export interface User {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  firebaseUid: string;
-  createdAt: string;
-  updatedAt?: string;
 }
 
 export interface CreateUserData {
