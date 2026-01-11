@@ -1,8 +1,8 @@
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import ContentForm from "./ContentForm"
 
@@ -12,13 +12,13 @@ interface AddContentProps {
 
 export default function AddContent({ onContentAdded }: AddContentProps) {
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline">Show Dialog</Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="outline">Add Content</Button>
+      </SheetTrigger>
+      <SheetContent>
         <ContentForm onContentAdded={onContentAdded} />
-      </AlertDialogContent>
-    </AlertDialog>
+      </SheetContent>
+    </Sheet>
   )
 }
