@@ -26,8 +26,15 @@ import { TypographyH1 } from "@/typography/TypographyH1";
 import { toReactFlowFormat } from '@/util/graphTransform';
 import { useGetUserGraph } from '@/api/getUserGraph';
 import { useAuthContext } from '@/contexts/AuthContext';
-
-
+import { NetworkIcon } from 'lucide-react';
+import ContentNode from '@/components/nodetypes/ContentNode';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 
 const simulation = forceSimulation()
   .force('charge', forceManyBody().strength(-1000))
@@ -36,6 +43,10 @@ const simulation = forceSimulation()
   .force('collide', collide())
   .alphaTarget(0.05)
   .stop();
+
+const nodeTypes = {
+  contentNode: ContentNode
+};
 
 const useLayoutedElements = () => {
   const { getNodes, setNodes, getEdges, fitView } = useReactFlow();
@@ -83,6 +94,7 @@ const LayoutFlow = ({ initialNodes, initialEdges }: { initialNodes: Node[], init
     <ReactFlow
       nodes={nodes}
       edges={edges}
+      nodeTypes={nodeTypes}
       fitView
     >
       <Background variant={BackgroundVariant.Dots} />
@@ -110,15 +122,31 @@ export default function DashboardPage() {
     return <div>Error loading graph: {error.message}</div>;
   }
 
+  const hasNoData = initialNodes.length === 0 && initialEdges.length === 0;
+
   return (
     <>
       <TypographyH1>Dashboard</TypographyH1>
       <AddContent onContentAdded={() => refetch()} />
-      <div style={{ width: '100vw', height: '100vh' }}>
-        <ReactFlowProvider>
-          <LayoutFlow initialNodes={initialNodes} initialEdges={initialEdges} />
-        </ReactFlowProvider>
-      </div>
+      {hasNoData ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <NetworkIcon />
+            </EmptyMedia>
+            <EmptyTitle>No Knowledge Graph Yet</EmptyTitle>
+            <EmptyDescription>
+              You haven't added any content yet. Get started by adding your first piece of content above.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div style={{ width: '100vw', height: '100vh' }}>
+          <ReactFlowProvider>
+            <LayoutFlow initialNodes={initialNodes} initialEdges={initialEdges} />
+          </ReactFlowProvider>
+        </div>
+      )}
     </>
   );
 }
