@@ -5,7 +5,6 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
   FieldSet,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -74,7 +73,6 @@ export default function ContentForm({ onContentAdded }: ContentFormProps) {
     <form onSubmit={handleSubmit(onSubmit)}>
       <FieldGroup>
         <FieldSet>
-          <FieldLegend>Add Content</FieldLegend>
           <FieldDescription>
             Use the form below to add new content to your collection.
           </FieldDescription>

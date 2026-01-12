@@ -35,7 +35,7 @@ interface ReactFlowData {
 function toReactFlowFormat(backendData: BackendData): ReactFlowData {
     const nodes: ReactFlowNode[] = backendData.nodes.map((node: BackendNode) => ({
         id: node.id,
-        type: node.type,
+        type: node.label === 'content' ? 'contentNode' : 'tagNode',
         data: { label: node.name || node.label || '' },
         position: { x: 0, y: 0 }
     }));
