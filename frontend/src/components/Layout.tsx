@@ -39,8 +39,15 @@ const useLayoutedElements = () => {
   const { getNodes, setNodes, getEdges, fitView } = useReactFlow();
   const initialized = useNodesInitialized();
 
+  console.log('useLayoutedElements - initialized:', initialized);
+
   useEffect(() => {
-    if (!initialized) return;
+    console.log('useLayoutedElements effect - initialized:', initialized);
+    
+    if (!initialized) {
+      console.log('Nodes not initialized yet, skipping layout');
+      return;
+    }
 
     const nodes = getNodes().map((node) => ({ 
       ...node,
@@ -48,7 +55,17 @@ const useLayoutedElements = () => {
       y: node.position.y,
     }));
 
-    const edges = getEdges();
+    const edges = getEdges().map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+    }));
+
+    console.log('Running force simulation with:', { 
+      nodeCount: nodes.length, 
+      edgeCount: edges.length,
+      nodes,
+      edges
+    });
 
     simulation.nodes(nodes).force(
       'link',
@@ -58,22 +75,39 @@ const useLayoutedElements = () => {
         .distance(100),
     );
 
-    simulation.tick(300);
-
-    setNodes(
-      nodes.map((node) => ({
-        ...node,
-        position: { x: node.x, y: node.y },
-      }))
+    console.log('Before simulation tick - sample node positions:', 
+      nodes.slice(0, 2).map(n => ({ id: n.id, x: n.x, y: n.y }))
     );
 
-    window.requestAnimationFrame(() => fitView());
+    simulation.tick(300);
+
+    console.log('After simulation tick - sample node positions:', 
+      nodes.slice(0, 2).map(n => ({ id: n.id, x: n.x, y: n.y }))
+    );
+
+    const updatedNodes = nodes.map((node) => ({
+      ...node,
+      position: { x: node.x, y: node.y },
+    }));
+
+    console.log('Setting nodes with new positions:', updatedNodes.slice(0, 2));
+
+    setNodes(updatedNodes);
+
+    window.requestAnimationFrame(() => {
+      console.log('Calling fitView');
+      fitView();
+    });
   }, [initialized, getNodes, getEdges, setNodes, fitView]);
 };
 
 const LayoutFlow = ({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) => {
-  const [nodes, , ] = useNodesState(initialNodes);
-  const [edges, , ] = useEdgesState(initialEdges);
+  console.log('LayoutFlow render - initialNodes:', initialNodes.length, 'initialEdges:', initialEdges.length);
+  
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  console.log('LayoutFlow - current nodes:', nodes.length, 'current edges:', edges.length);
 
   useLayoutedElements();
 
@@ -81,6 +115,8 @@ const LayoutFlow = ({ initialNodes, initialEdges }: { initialNodes: Node[], init
     <ReactFlow
       nodes={nodes}
       edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
       fitView
     >

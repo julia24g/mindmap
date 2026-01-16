@@ -33,10 +33,8 @@ interface ReactFlowData {
 }
 
 function toReactFlowFormat(backendData: BackendData): ReactFlowData {
-    console.log('Backend data:', backendData);
     
     const nodes: ReactFlowNode[] = backendData.nodes.map((node: BackendNode) => {
-        console.log(`Node ${node.id}: label="${node.label}", name="${node.name}"`);
         return {
             id: node.id,
             type: node.label === 'Content' ? 'contentNode' : 'input',
@@ -50,9 +48,6 @@ function toReactFlowFormat(backendData: BackendData): ReactFlowData {
     source: edge.from,
     target: edge.to
   }));
-  
-  console.log('Transformed nodes:', nodes);
-  console.log('Transformed edges:', edges);
   
   return { nodes, edges };
 }

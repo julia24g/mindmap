@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 
 export default memo(({ data }: { data: { label: string } }) => {
   return (
-    <>
+    <div>
       <Handle type="target" position={Position.Top} isConnectable={true} />
       <Button variant="outline">
         {data.label}
       </Button>
       <Handle type="source" position={Position.Bottom} isConnectable={true} />
-    </>
+    </div>
   );
 });
