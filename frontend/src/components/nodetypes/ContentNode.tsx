@@ -1,65 +1,15 @@
-import { memo, useState } from 'react';
-import { NodeProps } from '@xyflow/react';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { memo } from 'react';
+import { Handle, Position } from '@xyflow/react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
-interface ContentNodeData {
-  label: string;
-  [key: string]: any;
-}
-
-const ContentNode = ({ data, id }: NodeProps<ContentNodeData>) => {
-  const [open, setOpen] = useState(false);
-
+export default memo(({ data }: { data: { label: string } }) => {
   return (
     <>
-      <Button 
-        variant="outline" 
-        onClick={() => setOpen(true)}
-      >
+      <Handle type="target" position={Position.Top} isConnectable={true} />
+      <Button variant="outline">
         {data.label}
       </Button>
-
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>{data.label}</SheetTitle>
-            <SheetDescription>
-              Content Node Details
-            </SheetDescription>
-          </SheetHeader>
-          <div className="space-y-4">
-            <Card>
-              <CardContent>
-                <div>Node ID</div>
-                <div>{id}</div>
-              </CardContent>
-            </Card>
-            {Object.entries(data).map(([key, value]) => {
-              if (key === 'label') return null;
-              return (
-                <Card key={key}>
-                  <CardContent>
-                    <div>{key}</div>
-                    <div>
-                      {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <Handle type="source" position={Position.Bottom} isConnectable={true} />
     </>
   );
-};
-
-export default memo(ContentNode);
+});

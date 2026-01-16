@@ -74,16 +74,27 @@ def fetch_tags_from_graphql(limit=500) -> List[str]:
 def suggest_tags(text: str, existing_tags: List[str]) -> List[str]:
     existing_tags_text = f"And this list of existing tags:\n{', '.join(existing_tags)}\n\n" if existing_tags else ""
     prompt = (
-        f"Given this event:\n\n{text}\n\n"
+        f"Given this reflection:\n\n{text}\n\n"
         f"{existing_tags_text}"
-        "Suggest 1 to 5 relevant tags for the event. "
+        "Suggest 1 to 5 relevant tags for the reflection. "
         f"{'Prefer tags from the list if they fit well. If none apply, create new concise lowercase tags. ' if existing_tags else 'Create new concise lowercase tags. '}"
-        "Do not force tags—only suggest as many as are truly relevant and unique. "
-        "Avoid redundant or highly similar tags. "
-        "If the event is a book, podcast, article, movie, or any content that can be found online, "
-        "search the web for that title and use the information you find to help pick the most relevant tags. "
-        "Return the tags as a comma-separated list.\n"
-        "Tags:"
+            "Tagging rules:\n"
+        "- Tags must represent meaningful topics, themes, or concepts expressed by the reflection.\n"
+        "- Tags should be interpretive but grounded in the content.\n"
+        "- Prefer reusing tags from the existing list if they fit well.\n\n"
+
+        "Strict constraints (do NOT violate these):\n"
+        "- Do NOT create tags derived from the reflection title or its wording.\n"
+        "- Do NOT include content-type tags (e.g., podcast, book, film, article).\n"
+        "- Do NOT use vague or placeholder tags such as general, general-interest, misc, other, or similar.\n"
+        "- Do NOT force tags; return fewer tags rather than adding generic ones.\n\n"
+
+        "Additional guidance:\n"
+        "- It is acceptable to return only 1 or 2 strong tags if those best capture the reflection.\n"
+        "- Avoid redundant or highly overlapping tags.\n"
+        "- All tags must be concise, lowercase, and semantically meaningful.\n\n"
+
+        "IMPORTANT: Output ONLY the tags as a comma-separated list with NO explanations, NO introductory text, and NO additional commentary. Just the tags.\n"
     )
     result = tagger(prompt, max_new_tokens=50)
     # Extract tags from the response
