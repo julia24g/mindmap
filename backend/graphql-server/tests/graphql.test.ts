@@ -840,6 +840,101 @@ describe('GraphQL Resolvers', () => {
     });
   });
 
+  // Query - getUserGraphDates
+  describe('User Graph Dates', () => {
+    it('should return min createdAt and max updatedAt dates when user has content', async () => {
+      const minDate = new Date('2024-01-01T00:00:00Z');
+      const maxDate = new Date('2024-12-31T23:59:59Z');
+      
+      // Mock user exists
+      mockPgQuery.mockResolvedValueOnce({ 
+        rowCount: 1, 
+        rows: [{ userid: 'user-123' }] 
+      });
+      
+      // Mock dates query result
+      mockPgQuery.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{
+          mincreatedat: minDate,
+          maxupdatedat: maxDate
+        }]
+      });
+
+      const res = await server.executeOperation({
+        query: `query($firebaseUid: String!) { 
+          getUserGraphDates(firebaseUid: $firebaseUid) { 
+            createdAt 
+            updatedAt 
+          } 
+        }`,
+        variables: { 
+          firebaseUid: 'test-firebase-uid'
+        }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.getUserGraphDates).toBeDefined();
+      expect(new Date(data.getUserGraphDates.createdAt).getTime()).toBe(minDate.getTime());
+      expect(new Date(data.getUserGraphDates.updatedAt).getTime()).toBe(maxDate.getTime());
+    });
+
+    it('should return null dates when user has no content', async () => {
+      // Mock user exists
+      mockPgQuery.mockResolvedValueOnce({ 
+        rowCount: 1, 
+        rows: [{ userid: 'user-123' }] 
+      });
+      
+      // Mock dates query with no content
+      mockPgQuery.mockResolvedValueOnce({
+        rowCount: 0,
+        rows: []
+      });
+
+      const res = await server.executeOperation({
+        query: `query($firebaseUid: String!) { 
+          getUserGraphDates(firebaseUid: $firebaseUid) { 
+            createdAt 
+            updatedAt 
+          } 
+        }`,
+        variables: { 
+          firebaseUid: 'test-firebase-uid'
+        }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.getUserGraphDates).toBeDefined();
+      expect(data.getUserGraphDates.createdAt).toBeNull();
+      expect(data.getUserGraphDates.updatedAt).toBeNull();
+    });
+
+    it('should return error when user does not exist', async () => {
+      // Mock user doesn't exist
+      mockPgQuery.mockResolvedValueOnce({ 
+        rowCount: 0, 
+        rows: [] 
+      });
+
+      const res = await server.executeOperation({
+        query: `query($firebaseUid: String!) { 
+          getUserGraphDates(firebaseUid: $firebaseUid) { 
+            createdAt 
+            updatedAt 
+          } 
+        }`,
+        variables: { 
+          firebaseUid: 'nonexistent-firebase-uid'
+        }
+      });
+      
+      const errors = (res as any).body?.singleResult?.errors;
+      expect(errors).toBeDefined();
+      expect(errors?.[0].message).toMatch('User not found');
+    });
+  });
+
   // Mutation - updateContent
   describe('Content Updates', () => {
     it('should successfully update content title', async () => {

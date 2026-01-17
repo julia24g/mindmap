@@ -197,6 +197,29 @@ export const resolvers = {
       } finally {
         await session.close();
       }
+    },
+    // Get min createdAt and max updatedAt dates for user's content
+    async getUserGraphDates(_, { firebaseUid }) {
+      const userId = await getUserIdByFirebaseUid(firebaseUid);
+      
+      // Get min createdAt and max createdAt from content for this user
+      const datesResult = await pgPool.query(
+        'SELECT MIN(created_at) as minCreatedAt, MAX(created_at) as maxUpdatedAt FROM contents WHERE userid = $1',
+        [userId]
+      );
+      
+      // If user has no content, return null for both dates
+      if (datesResult.rows.length === 0 || !datesResult.rows[0].mincreatedat) {
+        return {
+          createdAt: null,
+          updatedAt: null
+        };
+      }
+      
+      return {
+        createdAt: datesResult.rows[0].mincreatedat,
+        updatedAt: datesResult.rows[0].maxupdatedat
+      };
     }
   },
   Mutation: {

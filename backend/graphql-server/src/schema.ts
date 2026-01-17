@@ -38,12 +38,17 @@ export const typeDefs = `#graphql
         nodes: [Node!]!
         edges: [Edge!]!
     }
+    type UserGraphDates {
+        createdAt: DateTime
+        updatedAt: DateTime
+    }
     type AuthResponse {
         user: User!
         token: String!
     }
     type Query {
         get_user_graph(firebaseUid: String!): UserGraph
+        getUserGraphDates(firebaseUid: String!): UserGraphDates
         content(contentId: ID!, firebaseUid: String!): Content
         allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
