@@ -1,4 +1,4 @@
-import { useForm, SubmitHandler } from "react-hook-form"
+import { useForm, SubmitHandler, Controller } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -38,7 +38,7 @@ interface ContentFormProps {
 }
 
 export default function ContentForm({ onContentAdded }: ContentFormProps) {
-  const { register, handleSubmit, reset } = useForm<IFormInput>()
+  const { register, handleSubmit, reset, control } = useForm<IFormInput>()
   const { addContent, loading } = useAddContent()
   const { currentUser } = useAuthContext()
 
@@ -87,18 +87,29 @@ export default function ContentForm({ onContentAdded }: ContentFormProps) {
             </Field>
             <Field>
               <FieldLabel htmlFor="type">Type</FieldLabel>
-              <Select {...register("type")} disabled={loading}>
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Select content type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(ContentType).map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                name="type"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <Select 
+                    value={field.value} 
+                    onValueChange={field.onChange}
+                    disabled={loading}
+                  >
+                    <SelectTrigger id="type">
+                      <SelectValue placeholder="Select content type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.values(ContentType).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </Field>
             <Field orientation="horizontal">
               <Button type="submit" disabled={loading}>

@@ -2,7 +2,14 @@ import { useGetContent } from "@/api/getContent";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { useEffect, useState } from "react";
+import ContentProperty from "./ContentProperty";
+import "@blocknote/core/fonts/inter.css";
+import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
+import { BlockNoteView } from "@blocknote/shadcn";
+import "@blocknote/shadcn/style.css";
+
 
 interface SplitViewProps {
   contentId: string | null;
@@ -10,6 +17,7 @@ interface SplitViewProps {
 }
 
 export default function SplitView({ contentId, onClose }: SplitViewProps) {
+  const editor = useCreateBlockNote();
   const { currentUser } = useAuthContext();
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -46,16 +54,11 @@ export default function SplitView({ contentId, onClose }: SplitViewProps) {
       }`}
     >
       {/* Header */}
-      <div className="border-b px-6 py-4 flex items-center justify-between">
+      <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex-1">
-          <h2 className="text-lg font-semibold">
-            {loading ? "Loading..." : content?.title || "Content Details"}
-          </h2>
-          {content?.type && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Type: {content.type}
-            </p>
-          )}
+          <h1 className="text-lg font-semibold">
+            {content?.title || "Content Details"}
+          </h1>
         </div>
         <Button
           variant="ghost"
@@ -70,54 +73,19 @@ export default function SplitView({ contentId, onClose }: SplitViewProps) {
       {/* Content */}
       <div className="flex-1 overflow-auto px-6 py-4">
         <div className="space-y-6">
-          {loading && (
-            <div className="text-sm text-muted-foreground">
-              Loading content details...
-            </div>
-          )}
-
-          {error && (
-            <div className="text-sm text-destructive">
-              Error loading content: {error.message}
-            </div>
-          )}
-
           {content && (
             <>
-              <div>
-                <h3 className="text-sm font-medium mb-2">Content ID</h3>
-                <p className="text-sm text-muted-foreground">{content.contentId}</p>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium mb-2">Created At</h3>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(content.created_at).toLocaleString()}
-                </p>
-              </div>
-
-              {content.properties && Object.keys(content.properties).length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Properties</h3>
-                  <div className="space-y-2">
-                    {Object.entries(content.properties).map(([key, value]) => (
-                      <div key={key} className="text-sm">
-                        <span className="font-medium">{key}: </span>
-                        <span className="text-muted-foreground">
-                          {typeof value === 'object' 
-                            ? JSON.stringify(value, null, 2)
-                            : String(value)
-                          }
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {content.type && <ContentProperty propertyTitle="Type" propertyValue={content.type} />}
+              {content.created_at && <ContentProperty propertyTitle="Created At" propertyValue={new Date(content.created_at).toLocaleString()} />}
             </>
           )}
+          
         </div>
+        <Separator />
+        <BlockNoteView
+          editor={editor} />
       </div>
+
     </div>
   );
 }

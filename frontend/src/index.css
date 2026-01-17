@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
+@source "../node_modules/@blocknote/shadcn";
 
 @layer base {
   :root {
