@@ -2,6 +2,7 @@ import { useGetContent } from "@/api/getContent";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 
 interface SplitViewProps {
   contentId: string | null;
@@ -10,15 +11,40 @@ interface SplitViewProps {
 
 export default function SplitView({ contentId, onClose }: SplitViewProps) {
   const { currentUser } = useAuthContext();
+  const [isVisible, setIsVisible] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
+  
   const { content, loading, error } = useGetContent(
     contentId || "",
     currentUser?.uid || ""
   );
 
-  if (!contentId) return null;
+  useEffect(() => {
+    if (contentId) {
+      setShouldRender(true);
+      // Small delay to trigger animation
+      setTimeout(() => setIsVisible(true), 10);
+    } else {
+      setIsVisible(false);
+      // Wait for animation to complete before unmounting
+      const timer = setTimeout(() => setShouldRender(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [contentId]);
+
+  const handleClose = () => {
+    setIsVisible(false);
+    setTimeout(() => onClose(), 300);
+  };
+
+  if (!shouldRender) return null;
 
   return (
-    <div className="w-180 border-l bg-background h-full flex flex-col">
+    <div 
+      className={`w-180 border shadow-lg bg-background h-full flex flex-col transition-transform duration-300 ease-in-out ${
+        isVisible ? 'translate-x-0' : 'translate-x-full'
+      }`}
+    >
       {/* Header */}
       <div className="border-b px-6 py-4 flex items-center justify-between">
         <div className="flex-1">
@@ -34,7 +60,7 @@ export default function SplitView({ contentId, onClose }: SplitViewProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={onClose}
+          onClick={handleClose}
           className="h-8 w-8"
         >
           <X className="h-4 w-4" />
