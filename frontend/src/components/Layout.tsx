@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   forceSimulation,
   forceLink,
@@ -22,6 +22,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import collide from '@/util/collision';
 import ContentNode from '@/components/nodetypes/ContentNode';
+import { Spinner } from '@/components/ui/spinner';
+import { Item, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item';
 
 const simulation = forceSimulation()
   .force('charge', forceManyBody().strength(-1000))
@@ -35,7 +37,7 @@ const nodeTypes = {
   contentNode: ContentNode
 };
 
-const useLayoutedElements = () => {
+const useLayoutedElements = (onComplete?: () => void) => {
   const { getNodes, setNodes, getEdges, fitView } = useReactFlow();
   const initialized = useNodesInitialized();
 
@@ -51,8 +53,10 @@ const useLayoutedElements = () => {
 
     const nodes = getNodes().map((node) => ({ 
       ...node,
-      x: node.position.x,
-      y: node.position.y,
+      x: node.position.x + (Math.random() - 0.5) * 100,
+      y: node.position.y + (Math.random() - 0.5) * 100,
+      // When all nodes start at same position (0, 0), this causes numerical instability in D3 force simulation
+      // because multiple nodes overlap exactly. Adding a small random offset helps.
     }));
 
     const edges = getEdges().map((edge) => ({
@@ -97,40 +101,71 @@ const useLayoutedElements = () => {
     window.requestAnimationFrame(() => {
       console.log('Calling fitView');
       fitView();
+      onComplete?.();
     });
   }, [initialized, getNodes, getEdges, setNodes, fitView]);
 };
 
-const LayoutFlow = ({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) => {
+const LayoutFlow = ({ initialNodes, initialEdges, onNodeClick }: { initialNodes: Node[], initialEdges: Edge[], onNodeClick: (contentId: string) => void }) => {
   console.log('LayoutFlow render - initialNodes:', initialNodes.length, 'initialEdges:', initialEdges.length);
   
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [isLoading, setIsLoading] = useState(true);
 
   console.log('LayoutFlow - current nodes:', nodes.length, 'current edges:', edges.length);
 
-  useLayoutedElements();
+  useEffect(() => {
+    const nodesWithClickHandler = initialNodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        onNodeClick: onNodeClick,
+      },
+    }));
+    setNodes(nodesWithClickHandler);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
+
+  useLayoutedElements(() => setIsLoading(false));
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      nodeTypes={nodeTypes}
-      fitView
-    >
-      <Background variant={BackgroundVariant.Dots} />
-      <Controls showInteractive={false} />
-    </ReactFlow>
+    <div className="relative h-full w-full">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
+          <Item variant="muted">
+            <ItemMedia>
+              <Spinner />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle className="line-clamp-1">Layouting your graph...</ItemTitle>
+            </ItemContent>
+          </Item>
+        </div>
+      )}
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        fitView
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={true}
+      >
+        <Background variant={BackgroundVariant.Dots} />
+        <Controls showInteractive={false} />
+      </ReactFlow>
+    </div>
   );
 };
 
-export default function Layout({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) {
+export default function Layout({ initialNodes, initialEdges, onNodeClick }: { initialNodes: Node[], initialEdges: Edge[], onNodeClick: (contentId: string) => void }) {
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
+    <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
-        <LayoutFlow initialNodes={initialNodes} initialEdges={initialEdges} />
+        <LayoutFlow initialNodes={initialNodes} initialEdges={initialEdges} onNodeClick={onNodeClick} />
       </ReactFlowProvider>
     </div>
   );

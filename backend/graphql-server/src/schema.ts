@@ -43,7 +43,7 @@ export const typeDefs = `#graphql
     }
     type Query {
         get_user_graph(firebaseUid: String!): UserGraph
-        content(contentId: ID!): Content
+        content(contentId: ID!, firebaseUid: String!): Content
         allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
         # User management queries

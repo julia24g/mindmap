@@ -1,7 +1,6 @@
 import { gql } from "@apollo/client";
 import { User } from "@/types";
 
-// Define the GraphQL mutation
 export const CREATE_USER = gql`
   mutation CreateUser(
     $idToken: String!
@@ -27,7 +26,6 @@ export const CREATE_USER = gql`
   }
 `;
 
-// TypeScript types for the mutation
 export interface CreateUserInput {
   idToken: string;
   firstName: string;

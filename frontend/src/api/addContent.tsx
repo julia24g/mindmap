@@ -1,7 +1,6 @@
 import { gql, useMutation } from "@apollo/client";
 import { Content } from "@/types";
 
-// Define the GraphQL mutation
 const ADD_CONTENT = gql`
   mutation AddContent(
     $firebaseUid: String!

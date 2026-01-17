@@ -10,6 +10,14 @@ import * as admin from 'firebase-admin';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+async function getUserIdByFirebaseUid(firebaseUid: string): Promise<number> {
+  const userResult = await pgPool.query('SELECT userId FROM users WHERE firebaseUid = $1', [firebaseUid]);
+  if (userResult.rowCount === 0) {
+    throw new GraphQLError('User not found');
+  }
+  return userResult.rows[0].userid;
+}
+
 export const resolvers = {
   DateTime: GraphQLDateTime,
   JSON: GraphQLJSON,
@@ -45,9 +53,10 @@ export const resolvers = {
       return mapUsersFromPostgres(result.rows);
     },
     // Get all content information
-    async content(_, { contentId }) {
+    async content(_, { contentId, firebaseUid }) {
+      const userId = await getUserIdByFirebaseUid(firebaseUid);
       // Fetch content from Postgres
-      const result = await pgPool.query('SELECT * FROM contents WHERE contentid = $1', [contentId]);
+      const result = await pgPool.query('SELECT * FROM contents WHERE contentid = $1 AND userid = $2', [contentId, userId]);
       if (!result.rows.length) {
         throw new GraphQLError('Content not found');
       }
@@ -56,11 +65,7 @@ export const resolvers = {
     // Get all nodes and edges in user knowledge graph
     async get_user_graph(_, { firebaseUid }) {
       // Check if user exists in Postgres and get their userId
-      const userResult = await pgPool.query('SELECT userId FROM users WHERE firebaseUid = $1', [firebaseUid]);
-      if (userResult.rowCount === 0) {
-        throw new GraphQLError('User not found');
-      }
-      const userId = userResult.rows[0].userid;
+      const userId = await getUserIdByFirebaseUid(firebaseUid);
       const session = neo4jDriver.session();
       try {
         // Get all tags that describe content for this user and their content nodes
@@ -95,7 +100,7 @@ export const resolvers = {
             nodesMap.set(`tag_${tagId}`,
               {
                 id: `tag_${tagId}`,
-                label: 'Tag',
+                label: 'tag',
                 name: tag.properties.name
               }
             );
@@ -105,7 +110,7 @@ export const resolvers = {
             nodesMap.set(`content_${contentInternalId}`,
               {
                 id: `content_${contentInternalId}`,
-                label: 'Content',
+                label: 'content',
                 // Prefer the contentId property stored on the node (this is the Postgres content id)
                 contentId: contentNodeIdProp,
               }
@@ -392,13 +397,7 @@ export const resolvers = {
     // Add new content, generate tags using LLM, insert into Postgres and Neo4j
     async addContent(_, { firebaseUid, title, type, properties }) {
       // 0. Look up user by Firebase UID and get internal userId
-      const userResult = await pgPool.query(
-        'SELECT userid FROM users WHERE firebaseuid = $1', [firebaseUid]
-      );
-      if (userResult.rowCount === 0) {
-        throw new GraphQLError('User does not exist');
-      }
-      const userId = userResult.rows[0].userid;
+      const userId = await getUserIdByFirebaseUid(firebaseUid);
       // 1. Insert content into Postgres
       const insertResult = await pgPool.query(
         'INSERT INTO contents (userid, title, type, properties) VALUES ($1, $2, $3, $4) RETURNING *',

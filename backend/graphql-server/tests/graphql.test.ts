@@ -75,10 +75,11 @@ describe('GraphQL Resolvers', () => {
 
   // Query - content
   it('should return error when contentId does not exist in Postgres', async () => {
-    mockPgQuery.mockImplementation(() => ({ rowCount: 0, rows: [] }));
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
     const res = await server.executeOperation({
-      query: `query($contentId: ID!) { content(contentId: $contentId) { title } }`,
-      variables: { contentId: '999' }
+      query: `query($contentId: ID!, $firebaseUid: String!) { content(contentId: $contentId, firebaseUid: $firebaseUid) { title } }`,
+      variables: { contentId: '999', firebaseUid: 'test-firebase-uid' }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -86,10 +87,11 @@ describe('GraphQL Resolvers', () => {
   });
 
   it('should return the correct content object when contentId exists', async () => {
+    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
     mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ contentid: '1', title: 'Test Content' }] });
     const res = await server.executeOperation({
-      query: `query($contentId: ID!) { content(contentId: $contentId) { title } }`,
-      variables: { contentId: '1' }
+      query: `query($contentId: ID!, $firebaseUid: String!) { content(contentId: $contentId, firebaseUid: $firebaseUid) { title } }`,
+      variables: { contentId: '1', firebaseUid: 'test-firebase-uid' }
     });
     const data = (res as any).body.singleResult.data;
     expect(data.content.title).toBe('Test Content');
@@ -176,14 +178,14 @@ describe('GraphQL Resolvers', () => {
     // Check node properties - content node should have contentId, tag node should have name
     const tagNode = data.get_user_graph.nodes.find((n: any) => n.id === 'tag_tag1');
     expect(tagNode).toMatchObject({ 
-      label: 'Tag',
+      label: 'tag',
       name: 'software engineering',
       contentId: null  // Tag nodes have no contentId
     });
     
     const contentNode = data.get_user_graph.nodes.find((n: any) => n.id === 'content_content1');
     expect(contentNode).toMatchObject({ 
-      label: 'Content',
+      label: 'content',
       contentId: 'content1',  // Content nodes have contentId
       name: null  // Content nodes have no name
     });
@@ -231,7 +233,7 @@ describe('GraphQL Resolvers', () => {
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
-    expect(errors?.[0].message).toMatch('User does not exist');
+    expect(errors?.[0].message).toMatch('User not found');
   });
 
   // Mutation - deleteContent

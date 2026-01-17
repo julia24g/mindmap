@@ -2,6 +2,7 @@ interface BackendNode {
     id: string;
     name?: string;
     label?: string;
+    contentId?: string;
 }
 
 interface BackendEdge {
@@ -17,7 +18,7 @@ interface BackendData {
 interface ReactFlowNode {
     id: string;
     type: string;
-    data: { label: string };
+    data: { label: string; contentId?: string };
     position: { x: number; y: number };
 }
 
@@ -36,17 +37,20 @@ function toReactFlowFormat(backendData: BackendData): ReactFlowData {
     
     const nodes: ReactFlowNode[] = backendData.nodes.map((node: BackendNode) => {
         return {
-            id: node.id,
-            type: node.label === 'Content' ? 'contentNode' : 'input',
-            data: { label: node.name || node.label || '' },
+            id: String(node.id),
+            type: node.label === 'content' ? 'contentNode' : 'input',
+            data: { 
+                label: node.name || node.label || '',
+                contentId: node.contentId
+            },
             position: { x: 0, y: 0 }
         };
     });
   
   const edges = backendData.edges.map(edge => ({
     id: `${edge.from}-${edge.to}`,
-    source: edge.from,
-    target: edge.to
+    source: String(edge.from),
+    target: String(edge.to),
   }));
   
   return { nodes, edges };
