@@ -14,6 +14,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import MenuBar from '@/components/MenuBar';
 
 export default function DashboardPage() {
   const { currentUser } = useAuthContext();
@@ -41,20 +42,12 @@ export default function DashboardPage() {
     setIsSplitViewOpen(false);
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error loading graph: {error.message}</div>;
-  }
-
   const hasNoData = initialNodes.length === 0 && initialEdges.length === 0;
 
   return (
     <div className="flex flex-col h-screen">
+      <MenuBar />
       <div className="flex-none">
-        <TypographyH1>Dashboard</TypographyH1>
         <AddContent onContentAdded={() => refetch()} />
       </div>
       {hasNoData ? (
