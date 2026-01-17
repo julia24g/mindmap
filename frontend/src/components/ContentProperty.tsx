@@ -3,9 +3,15 @@ import {
   ItemContent,
   ItemDescription,
   ItemTitle,
-} from "@/components/ui/item"
+} from "@/components/ui/item";
 
-export default function ContentProperty({ propertyTitle, propertyValue }: { propertyTitle: string; propertyValue: string }) {
+export default function ContentProperty({
+  propertyTitle,
+  propertyValue,
+}: {
+  propertyTitle: string;
+  propertyValue: string;
+}) {
   return (
     <div className="flex w-full max-w-md flex-col gap-6">
       <Item size="sm">
@@ -13,9 +19,7 @@ export default function ContentProperty({ propertyTitle, propertyValue }: { prop
           <ItemTitle>{propertyTitle}</ItemTitle>
         </ItemContent>
         <ItemContent>
-          <ItemDescription>
-            {propertyValue}
-          </ItemDescription>
+          <ItemDescription>{propertyValue}</ItemDescription>
         </ItemContent>
       </Item>
     </div>

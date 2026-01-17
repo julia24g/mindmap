@@ -1,55 +1,55 @@
-import { useNavigate, Link } from "react-router-dom"
-import { useForm, SubmitHandler } from "react-hook-form"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { useNavigate, Link } from "react-router-dom";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useAuth } from "@/hooks/useAuth"
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LoginFormInputs {
-  email: string
-  password: string
+  email: string;
+  password: string;
 }
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
-  const { 
-    register, 
-    handleSubmit, 
-    formState: { errors }
-  } = useForm<LoginFormInputs>()
-  
-  const { signIn, signInWithGoogle, loading } = useAuth()
-  const navigate = useNavigate()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormInputs>();
+
+  const { signIn, signInWithGoogle, loading } = useAuth();
+  const navigate = useNavigate();
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
-    const userCredential = await signIn(data.email, data.password)
-    
+    const userCredential = await signIn(data.email, data.password);
+
     if (userCredential) {
       // Successfully signed in
-      console.log("Signed in:", userCredential.user)
-      navigate("/dashboard")
+      console.log("Signed in:", userCredential.user);
+      navigate("/dashboard");
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
-    const userCredential = await signInWithGoogle()
-    
+    const userCredential = await signInWithGoogle();
+
     if (userCredential) {
       // Successfully signed in with Google
-      console.log("Signed in with Google:", userCredential.user)
-      navigate("/dashboard")
+      console.log("Signed in with Google:", userCredential.user);
+      navigate("/dashboard");
     }
-  }
+  };
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -69,12 +69,12 @@ export function LoginForm({
                   id="email"
                   type="email"
                   placeholder="m@example.com"
-                  {...register("email", { 
+                  {...register("email", {
                     required: "Email is required",
                     pattern: {
                       value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: "Invalid email address"
-                    }
+                      message: "Invalid email address",
+                    },
                   })}
                   disabled={loading}
                 />
@@ -89,11 +89,11 @@ export function LoginForm({
                     Forgot your password?
                   </a>
                 </div>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  {...register("password", { 
-                    required: "Password is required"
+                <Input
+                  id="password"
+                  type="password"
+                  {...register("password", {
+                    required: "Password is required",
                   })}
                   disabled={loading}
                 />
@@ -101,9 +101,9 @@ export function LoginForm({
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logging in..." : "Login"}
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                variant="outline"
+                className="w-full"
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
@@ -121,7 +121,7 @@ export function LoginForm({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 export default function LoginPage() {
@@ -131,5 +131,5 @@ export default function LoginPage() {
         <LoginForm />
       </div>
     </div>
-  )
+  );
 }

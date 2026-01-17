@@ -10,7 +10,6 @@ import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 
-
 interface SplitViewProps {
   contentId: string | null;
   onClose: () => void;
@@ -21,10 +20,10 @@ export default function SplitView({ contentId, onClose }: SplitViewProps) {
   const { currentUser } = useAuthContext();
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
-  
+
   const { content, loading, error } = useGetContent(
     contentId || "",
-    currentUser?.uid || ""
+    currentUser?.uid || "",
   );
 
   useEffect(() => {
@@ -48,9 +47,9 @@ export default function SplitView({ contentId, onClose }: SplitViewProps) {
   if (!shouldRender) return null;
 
   return (
-    <div 
+    <div
       className={`w-180 border shadow-lg bg-background h-full flex flex-col transition-transform duration-300 ease-in-out ${
-        isVisible ? 'translate-x-0' : 'translate-x-full'
+        isVisible ? "translate-x-0" : "translate-x-full"
       }`}
     >
       {/* Header */}
@@ -75,17 +74,24 @@ export default function SplitView({ contentId, onClose }: SplitViewProps) {
         <div className="space-y-6">
           {content && (
             <>
-              {content.type && <ContentProperty propertyTitle="Type" propertyValue={content.type} />}
-              {content.created_at && <ContentProperty propertyTitle="Created At" propertyValue={new Date(content.created_at).toLocaleString()} />}
+              {content.type && (
+                <ContentProperty
+                  propertyTitle="Type"
+                  propertyValue={content.type}
+                />
+              )}
+              {content.created_at && (
+                <ContentProperty
+                  propertyTitle="Created At"
+                  propertyValue={new Date(content.created_at).toLocaleString()}
+                />
+              )}
             </>
           )}
-          
         </div>
         <Separator />
-        <BlockNoteView
-          editor={editor} />
+        <BlockNoteView editor={editor} />
       </div>
-
     </div>
   );
 }

@@ -1,12 +1,10 @@
-import { useMemo, useState, useCallback } from 'react';
-import AddContent from "@/components/AddContent";
-import { TypographyH1 } from "@/typography/TypographyH1";
-import { toReactFlowFormat } from '@/util/graphTransform';
-import { useGetUserGraph } from '@/api/getUserGraph';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { NetworkIcon } from 'lucide-react';
-import Layout from '@/components/Layout';
-import SplitView from '@/components/SplitView';
+import { useMemo, useState, useCallback } from "react";
+import { toReactFlowFormat } from "@/util/graphTransform";
+import { useGetUserGraph } from "@/api/getUserGraph";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { NetworkIcon } from "lucide-react";
+import Layout from "@/components/Layout";
+import SplitView from "@/components/SplitView";
 import {
   Empty,
   EmptyDescription,
@@ -14,12 +12,16 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import MenuBar from '@/components/MenuBar';
+import MenuBar from "@/components/MenuBar";
 
 export default function DashboardPage() {
   const { currentUser } = useAuthContext();
-  const { graph, loading, error, refetch } = useGetUserGraph(currentUser?.uid || '');
-  const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
+  const { graph, loading, error, refetch } = useGetUserGraph(
+    currentUser?.uid || "",
+  );
+  const [selectedContentId, setSelectedContentId] = useState<string | null>(
+    null,
+  );
   const [isSplitViewOpen, setIsSplitViewOpen] = useState(false);
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
@@ -46,10 +48,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <MenuBar />
-      <div className="flex-none">
-        <AddContent onContentAdded={() => refetch()} />
-      </div>
+      <MenuBar refetch={refetch} />
       {hasNoData ? (
         <div className="flex-1">
           <Empty>
@@ -59,7 +58,8 @@ export default function DashboardPage() {
               </EmptyMedia>
               <EmptyTitle>No Knowledge Graph Yet</EmptyTitle>
               <EmptyDescription>
-                You haven't added any content yet. Get started by adding your first piece of content above.
+                You haven't added any content yet. Get started by adding your
+                first piece of content above.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -67,8 +67,8 @@ export default function DashboardPage() {
       ) : (
         <div className="flex flex-1 min-h-0">
           <div className="flex-1">
-            <Layout 
-              initialNodes={initialNodes} 
+            <Layout
+              initialNodes={initialNodes}
               initialEdges={initialEdges}
               onNodeClick={handleNodeClick}
             />

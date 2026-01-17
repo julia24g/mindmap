@@ -1,4 +1,4 @@
-import { quadtree, Quadtree } from 'd3-quadtree';
+import { quadtree, Quadtree } from "d3-quadtree";
 
 interface SimulationNode {
   x: number;
@@ -18,7 +18,7 @@ interface Force {
 
 export function collide(): Force {
   let nodes: SimulationNode[] = [];
-  
+
   const force = (alpha: number): void => {
     const tree: Quadtree<SimulationNode> = quadtree(
       nodes,
@@ -36,9 +36,10 @@ export function collide(): Force {
       tree.visit((quad, x1, y1, x2, y2) => {
         if (!quad.length) {
           do {
-            if ('data' in quad && quad.data && quad.data !== node) {
-              const r = (node.measured?.width || node.width || 150) / 2 + 
-                       (quad.data.measured?.width || quad.data.width || 150) / 2;
+            if ("data" in quad && quad.data && quad.data !== node) {
+              const r =
+                (node.measured?.width || node.width || 150) / 2 +
+                (quad.data.measured?.width || quad.data.width || 150) / 2;
               let x = node.x - quad.data.x;
               let y = node.y - quad.data.y;
               let l = Math.hypot(x, y);

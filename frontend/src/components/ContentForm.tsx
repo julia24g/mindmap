@@ -1,22 +1,22 @@
-import { useForm, SubmitHandler, Controller } from "react-hook-form"
-import { Button } from "@/components/ui/button"
+import { useForm, SubmitHandler, Controller } from "react-hook-form";
+import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldSet,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { useAddContent } from "@/api/addContent"
-import { useAuthContext } from "@/contexts/AuthContext"
+} from "@/components/ui/select";
+import { useAddContent } from "@/api/addContent";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 enum ContentType {
   book = "book",
@@ -29,8 +29,8 @@ enum ContentType {
 }
 
 interface IFormInput {
-  title: string
-  type: ContentType
+  title: string;
+  type: ContentType;
 }
 
 interface ContentFormProps {
@@ -38,36 +38,36 @@ interface ContentFormProps {
 }
 
 export default function ContentForm({ onContentAdded }: ContentFormProps) {
-  const { register, handleSubmit, reset, control } = useForm<IFormInput>()
-  const { addContent, loading } = useAddContent()
-  const { currentUser } = useAuthContext()
+  const { register, handleSubmit, reset, control } = useForm<IFormInput>();
+  const { addContent, loading } = useAddContent();
+  const { currentUser } = useAuthContext();
 
   const onSubmit: SubmitHandler<IFormInput> = async (data) => {
     try {
       if (!currentUser) {
-        throw new Error("User not authenticated")
+        throw new Error("User not authenticated");
       }
-      const firebaseUid = currentUser?.uid
-      
+      const firebaseUid = currentUser?.uid;
+
       await addContent({
         variables: {
           firebaseUid,
           title: data.title,
           type: data.type,
         },
-      })
-      
-      console.log("Content added successfully!")
-      reset()
-      
+      });
+
+      console.log("Content added successfully!");
+      reset();
+
       // Refetch the graph after adding content
       if (onContentAdded) {
         onContentAdded();
       }
     } catch (err) {
-      console.error("Error adding content:", err)
+      console.error("Error adding content:", err);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -79,9 +79,9 @@ export default function ContentForm({ onContentAdded }: ContentFormProps) {
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="title">Title</FieldLabel>
-              <Input 
-                id="title" 
-                {...register("title", { required: true })} 
+              <Input
+                id="title"
+                {...register("title", { required: true })}
                 disabled={loading}
               />
             </Field>
@@ -92,8 +92,8 @@ export default function ContentForm({ onContentAdded }: ContentFormProps) {
                 control={control}
                 rules={{ required: true }}
                 render={({ field }) => (
-                  <Select 
-                    value={field.value} 
+                  <Select
+                    value={field.value}
                     onValueChange={field.onChange}
                     disabled={loading}
                   >
@@ -123,6 +123,5 @@ export default function ContentForm({ onContentAdded }: ContentFormProps) {
         </FieldSet>
       </FieldGroup>
     </form>
-  )
+  );
 }
-

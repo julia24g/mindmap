@@ -4,9 +4,9 @@ import {
   SheetTrigger,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
-import { Button } from "@/components/ui/button"
-import ContentForm from "./ContentForm"
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import ContentForm from "./ContentForm";
 
 interface AddContentProps {
   onContentAdded?: () => void;
@@ -25,5 +25,5 @@ export default function AddContent({ onContentAdded }: AddContentProps) {
         <ContentForm onContentAdded={onContentAdded} />
       </SheetContent>
     </Sheet>
-  )
+  );
 }

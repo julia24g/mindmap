@@ -7,11 +7,7 @@ export const CREATE_USER = gql`
     $firstName: String!
     $lastName: String!
   ) {
-    createUser(
-      idToken: $idToken
-      firstName: $firstName
-      lastName: $lastName
-    ) {
+    createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) {
       user {
         userId
         firstName
