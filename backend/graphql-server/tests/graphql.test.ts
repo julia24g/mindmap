@@ -131,7 +131,7 @@ describe('GraphQL Resolvers', () => {
               } else if (key === 'c') {
                 return { 
                   identity: 'content1', 
-                  properties: { title: 'Test Content' }
+                  properties: { title: 'Test Content', contentId: 'content1' }
                 };
               }
               return undefined;
@@ -156,7 +156,7 @@ describe('GraphQL Resolvers', () => {
       });
 
     const res = await server.executeOperation({
-      query: `query($firebaseUid: String!) { get_user_graph(firebaseUid: $firebaseUid) { nodes { id label contentId name } edges { from to type } } }`,
+      query: `query($firebaseUid: String!) { get_user_graph(firebaseUid: $firebaseUid) { nodes { id label contentId name title } edges { from to type } } }`,
       variables: { firebaseUid: 'test-firebase-uid' }
     });
     
@@ -187,7 +187,8 @@ describe('GraphQL Resolvers', () => {
     expect(contentNode).toMatchObject({ 
       label: 'content',
       contentId: 'content1',  // Content nodes have contentId
-      name: null  // Content nodes have no name
+      name: null,  // Content nodes have no name
+      title: 'Test Content'  // Content nodes have title
     });
   });
 

@@ -3,7 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import { Button } from "@/components/ui/button";
 
 interface ContentNodeData {
-  label: string;
+  title: string;
   contentId: string;
   onNodeClick?: (contentId: string) => void;
 }
@@ -19,7 +19,7 @@ export default memo(({ data }: { data: ContentNodeData }) => {
     <div>
       <Handle type="target" position={Position.Top} isConnectable={true} />
       <Button variant="outline" onClick={handleClick}>
-        {data.label}
+        {data.title}
       </Button>
       <Handle type="source" position={Position.Bottom} isConnectable={true} />
     </div>

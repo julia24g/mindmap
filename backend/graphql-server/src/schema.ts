@@ -27,6 +27,7 @@ export const typeDefs = `#graphql
         label: String!
         contentId: ID # For content nodes only
         name: String # For tag nodes only
+        title: String # For content nodes only
     }
     type Edge {
         from: ID!

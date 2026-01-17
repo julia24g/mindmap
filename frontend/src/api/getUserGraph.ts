@@ -8,6 +8,7 @@ export const GET_USER_GRAPH = gql`
         label
         contentId
         name
+        title
       }
       edges {
         from
@@ -23,6 +24,7 @@ export interface Node {
   label: string;
   contentId?: string; // For content nodes only
   name?: string; // For tag nodes only
+  title?: string; // For content nodes only
 }
 
 export interface Edge {

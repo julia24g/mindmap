@@ -203,7 +203,7 @@ describe('Integration Tests', () => {
       const getGraphQuery = `
         query GetUserGraph($firebaseUid: String!) {
           get_user_graph(firebaseUid: $firebaseUid) {
-            nodes { id label contentId name }
+            nodes { id label contentId name title }
             edges { from to type }
           }
         }
@@ -215,8 +215,8 @@ describe('Integration Tests', () => {
       expect(Array.isArray(graph.nodes)).toBe(true);
       expect(Array.isArray(graph.edges)).toBe(true);
 
-        const tagNodes = graph.nodes.filter((n: any) => n.label === 'Tag');
-        const contentNodes = graph.nodes.filter((n: any) => n.label === 'Content');
+        const tagNodes = graph.nodes.filter((n: any) => n.label === 'tag');
+        const contentNodes = graph.nodes.filter((n: any) => n.label === 'content');
         expect(tagNodes.length).toBeGreaterThanOrEqual(1);
         expect(contentNodes.length).toBeGreaterThanOrEqual(2);
 
@@ -241,8 +241,8 @@ describe('Integration Tests', () => {
           // from should be a Tag node, to should be a Content node
           expect(from).toBeDefined();
           expect(to).toBeDefined();
-          expect(from.label).toBe('Tag');
-          expect(to.label).toBe('Content');
+          expect(from.label).toBe('tag');
+          expect(to.label).toBe('content');
           // The content node referenced by the edge should have a contentId matching one we created
           expect([contentId1, contentId2]).toContain(to.contentId);
         });

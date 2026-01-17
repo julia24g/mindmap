@@ -3,6 +3,7 @@ interface BackendNode {
     name?: string;
     label?: string;
     contentId?: string;
+    title?: string;
 }
 
 interface BackendEdge {
@@ -18,7 +19,7 @@ interface BackendData {
 interface ReactFlowNode {
     id: string;
     type: string;
-    data: { label: string; contentId?: string };
+    data: { label: string; contentId?: string; title?: string };
     position: { x: number; y: number };
 }
 
@@ -41,7 +42,8 @@ function toReactFlowFormat(backendData: BackendData): ReactFlowData {
             type: node.label === 'content' ? 'contentNode' : 'input',
             data: { 
                 label: node.name || node.label || '',
-                contentId: node.contentId
+                contentId: node.contentId,
+                title: node.title
             },
             position: { x: 0, y: 0 }
         };

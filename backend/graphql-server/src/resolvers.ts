@@ -113,6 +113,7 @@ export const resolvers = {
                 label: 'content',
                 // Prefer the contentId property stored on the node (this is the Postgres content id)
                 contentId: contentNodeIdProp,
+                title: content.properties.title || '',
               }
             );
           }
