@@ -1,30 +1,43 @@
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { Lock, Clock, Share2 } from "lucide-react"
+import { Lock, Clock } from "lucide-react"
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useGetUserGraphDates } from "@/api/getGraphDates"
+import SharePopup from "./SharePopup";
 
 export default function MenuBar() {
-  // Mock data - replace with actual state/props
-  const lastEdited = new Date().toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  const { currentUser } = useAuthContext();
+  const { graphDates } = useGetUserGraphDates(currentUser?.uid || "")
+  
   const isPrivate = true
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Unknown"
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric'
+    })
+  }
+
+  const formatFullDate = (dateString: string | null) => {
+    if (!dateString) return "Unknown"
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  const lastEditedShort = graphDates?.updatedAt ? formatDate(graphDates.updatedAt) : "Unknown"
+  const lastEditedFull = graphDates?.updatedAt ? formatFullDate(graphDates.updatedAt) : "Unknown"
+  const createdFull = graphDates?.createdAt ? formatFullDate(graphDates.createdAt) : "Unknown"
 
   return (
     <div className="flex items-center justify-between w-full px-4 py-3">
@@ -52,19 +65,20 @@ export default function MenuBar() {
             <TooltipTrigger asChild>
               <div className="flex items-center gap-1.5 text-muted-foreground text-sm cursor-default">
                 <Clock className="h-4 w-4" />
-                <span>Edited</span>
+                <span>Edited {lastEditedShort}</span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Last edited: {lastEdited}</p>
+              <div className="space-y-1">
+                <p>Last edited {lastEditedFull}</p>
+                <p>Created {createdFull}</p>
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
 
         {/* Share Button */}
-        <Button variant="default" size="sm">
-          Share
-        </Button>
+        <SharePopup />
       </div>
     </div>
   )
