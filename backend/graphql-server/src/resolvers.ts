@@ -49,8 +49,24 @@ export const resolvers = {
       }
       return content;
     },
+      // Get all dashboards for a user by firebaseUid
+      async getUserDashboards(_: any, { firebaseUid }: { firebaseUid: string }) {
+        const userId = await getUserIdByFirebaseUid(firebaseUid);
+        const dashboards = await prisma.dashboard.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+            updatedAt: true,
+            userId: true,
+            publicUrl: true
+          }
+        });
+        return dashboards;
+      },
     // Get all nodes and edges in user knowledge graph
-    async get_user_graph(_: any, { firebaseUid }: { firebaseUid: string }) {
+    async getUserGraph(_: any, { firebaseUid }: { firebaseUid: string }) {
       // Check if user exists in Postgres and get their userId
       const userId = await getUserIdByFirebaseUid(firebaseUid);
       const session = neo4jDriver.session();

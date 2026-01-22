@@ -56,15 +56,14 @@ export const typeDefs = `#graphql
         token: String!
     }
     type Query {
-        get_user_graph(firebaseUid: String!): UserGraph
+        getUserGraph(firebaseUid: String!): UserGraph
+        getUserDashboards(firebaseUid: String!): [Dashboard!]!
         getUserGraphDates(dashboardId: ID!): UserGraphDates
         getContent(id: ID!, firebaseUid: String!): Content
         allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
-        # User management queries
         getUser(id: ID!): User
         getUserByEmail(email: String!): User
-        getAllUsers: [User!]!
     }
     type Mutation {
         addContent(

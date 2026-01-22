@@ -2,7 +2,7 @@ import { gql, useQuery } from "@apollo/client";
 
 export const GET_USER_GRAPH = gql`
   query GetUserGraph($firebaseUid: String!) {
-    get_user_graph(firebaseUid: $firebaseUid) {
+    getUserGraph(firebaseUid: $firebaseUid) {
       nodes {
         id
         label
@@ -43,7 +43,7 @@ export interface GetUserGraphInput {
 }
 
 export interface GetUserGraphData {
-  get_user_graph: UserGraph;
+  getUserGraph: UserGraph;
 }
 
 export function useGetUserGraph(firebaseUid: string) {
@@ -56,7 +56,7 @@ export function useGetUserGraph(firebaseUid: string) {
   });
 
   return {
-    graph: data?.get_user_graph,
+    graph: data?.getUserGraph,
     loading,
     error,
     refetch,
