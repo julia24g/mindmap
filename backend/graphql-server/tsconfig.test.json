@@ -2,8 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node", "jest"],
-    "module": "commonjs",
-    "moduleResolution": "node"
+    "module": "esnext",
+    "moduleResolution": "bundler"
   },
   "include": ["src", "tests"]
 }

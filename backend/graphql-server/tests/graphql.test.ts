@@ -1,23 +1,21 @@
+jest.mock('../src/db/neo4j', () => ({
+  neo4jDriver: { session: jest.fn() }
+}));
+jest.mock('../src/lib/prisma', () => {
+  const { mockPrisma } = jest.requireActual('../__mocks__/prisma.js');
+  return { prisma: mockPrisma };
+});
+
+jest.mock('neo4j-driver');
+jest.mock('firebase-admin');
+
 import { ApolloServer } from '@apollo/server';
 import { resolvers } from '../src/resolvers';
 import { typeDefs } from '../src/schema';
 import nock from 'nock';
-import { pgPool } from '../src/db/postgres';
 import { neo4jDriver } from '../src/db/neo4j';
 import { mockVerifyIdToken, auth as mockAuth } from '../__mocks__/firebase-admin';
-
-jest.mock('../src/db/postgres', () => ({
-  pgPool: { query: jest.fn() }
-}));
-jest.mock('../src/db/neo4j', () => ({
-  neo4jDriver: { session: jest.fn() }
-}));
-
-jest.mock('pg');
-jest.mock('neo4j-driver');
-jest.mock('firebase-admin');
-
-const mockPgQuery = pgPool.query as jest.Mock;
+import { mockPrisma } from '../__mocks__/prisma.js';
 
 const MOCK_LLM_RESPONSE = ["software engineering", "databases", "system design"];
 
@@ -49,7 +47,6 @@ describe('GraphQL Resolvers', () => {
     }));
     
     // Mock database connection methods
-    mockPgQuery.mockReset();
     neo4jSessionMock = {
       run: jest.fn(),
       close: jest.fn()
@@ -64,7 +61,6 @@ describe('GraphQL Resolvers', () => {
 
   afterEach(() => {
     nock.cleanAll();
-    mockPgQuery.mockReset();
     if (neo4jSessionMock && neo4jSessionMock.run) {
       neo4jSessionMock.run.mockReset();
     }
@@ -75,11 +71,11 @@ describe('GraphQL Resolvers', () => {
 
   // Query - content
   it('should return error when contentId does not exist in Postgres', async () => {
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: '1' });
+    mockPrisma.content.findUnique.mockResolvedValueOnce(null);
     const res = await server.executeOperation({
-      query: `query($contentId: ID!, $firebaseUid: String!) { content(contentId: $contentId, firebaseUid: $firebaseUid) { title } }`,
-      variables: { contentId: '999', firebaseUid: 'test-firebase-uid' }
+      query: `query($id: ID!, $firebaseUid: String!) { getContent(id: $id, firebaseUid: $firebaseUid) { title } }`,
+      variables: { id: '999', firebaseUid: 'test-firebase-uid' }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -87,20 +83,20 @@ describe('GraphQL Resolvers', () => {
   });
 
   it('should return the correct content object when contentId exists', async () => {
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ contentid: '1', title: 'Test Content' }] });
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: '1' });
+    mockPrisma.content.findUnique.mockResolvedValueOnce({ id: '1', title: 'Test Content' });
     const res = await server.executeOperation({
-      query: `query($contentId: ID!, $firebaseUid: String!) { content(contentId: $contentId, firebaseUid: $firebaseUid) { title } }`,
-      variables: { contentId: '1', firebaseUid: 'test-firebase-uid' }
+      query: `query($id: ID!, $firebaseUid: String!) { getContent(id: $id, firebaseUid: $firebaseUid) { title } }`,
+      variables: { id: '1', firebaseUid: 'test-firebase-uid' }
     });
     const data = (res as any).body.singleResult.data;
-    expect(data.content.title).toBe('Test Content');
+    expect(data.getContent.title).toBe('Test Content');
   });
 
   // Query - get_user_graph
   it('should return an error when firebaseUid does not exist in Neo4j/Postgres', async () => {
-    // Mock Postgres to return no user
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+    // Mock Prisma to return no user
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
     neo4jSessionMock.run.mockResolvedValueOnce({ records: [] });
 
     const res = await server.executeOperation({
@@ -113,8 +109,8 @@ describe('GraphQL Resolvers', () => {
   });
 
   it('should return all relevant nodes and edges for a firebaseUid that exists', async () => {
-    // Mock Postgres to return a user with userId when looking up by firebaseUid
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
+    // Mock Prisma to return a user with userId when looking up by firebaseUid
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: '1' });
     
     // Mock Neo4j to return records for nodes and edges in the expected structure
     neo4jSessionMock.run
@@ -194,43 +190,61 @@ describe('GraphQL Resolvers', () => {
 
   // Mutation - addContent
   it('should successfully add content and create tags/relationships in Neo4j when userId exists', async () => {
-    // Mock Postgres responses for both queries
+    // Mock Prisma responses
     // First call: Look up user by firebaseUid
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: '1' }] });
-    // Second call: Insert content and return the created content
-    mockPgQuery.mockResolvedValueOnce({ 
-      rowCount: 1, 
-      rows: [{ 
-        contentid: '1', 
-        title: 'New Content', 
-        userId: '1',
-        type: null,
-        created_at: new Date(),
-        properties: null
-      }] 
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: '1' });
+    // Second call: Verify dashboard belongs to user
+    mockPrisma.dashboard.findUnique.mockResolvedValueOnce({ 
+      id: 'dashboard-1', 
+      userId: '1',
+      name: 'Test Dashboard',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    // Third call: Create content and return the created content
+    mockPrisma.content.create.mockResolvedValueOnce({ 
+      id: '1', 
+      title: 'New Content', 
+      userId: '1',
+      type: null,
+      createdAt: new Date(),
+      properties: null
+    });
+    // Fourth call: Update dashboard's updatedAt timestamp
+    mockPrisma.dashboard.update.mockResolvedValueOnce({
+      id: 'dashboard-1',
+      userId: '1',
+      name: 'Test Dashboard',
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
     
     // Mock Neo4j responses for tag operations
     neo4jSessionMock.run.mockResolvedValueOnce({ records: [{ get: () => '1' }] });
 
     const res = await server.executeOperation({
-      query: `mutation($firebaseUid: String!, $title: String!) { addContent(firebaseUid: $firebaseUid, title: $title) { contentId title } }`,
-      variables: { firebaseUid: 'test-firebase-uid', title: 'New Content' }
+      query: `mutation($firebaseUid: String!, $dashboardId: ID!, $title: String!) { addContent(firebaseUid: $firebaseUid, dashboardId: $dashboardId, title: $title) { id title } }`,
+      variables: { firebaseUid: 'test-firebase-uid', dashboardId: 'dashboard-1', title: 'New Content' }
     });
     
     const data = (res as any).body.singleResult.data;
     expect(data.addContent.title).toBe('New Content');
     // Check Neo4j for created nodes and relationships
     expect(neo4jSessionMock.run).toHaveBeenCalled();
+    // Verify that dashboard.update was called to update the updatedAt timestamp
+    expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({
+      where: { id: 'dashboard-1' },
+      data: { updatedAt: expect.any(Date) }
+    });
   });
 
   it('should throw an error if userId does not exist in Postgres', async () => {
     // Mock the user check to return no user
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
     const res = await server.executeOperation({
-      query: `mutation($firebaseUid: String!, $title: String!) { addContent(firebaseUid: $firebaseUid, title: $title) { contentId title } }`,
-      variables: { firebaseUid: 'nonexistent-firebase-uid', title: 'New Content' }
+      query: `mutation($firebaseUid: String!, $dashboardId: ID!, $title: String!) { addContent(firebaseUid: $firebaseUid, dashboardId: $dashboardId, title: $title) { id title } }`,
+      variables: { firebaseUid: 'nonexistent-firebase-uid', dashboardId: 'dashboard-1', title: 'New Content' }
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -239,10 +253,10 @@ describe('GraphQL Resolvers', () => {
 
   // Mutation - deleteContent
   it('should return false if contentId does not exist in Postgres/Neo4j', async () => {
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+    mockPrisma.content.findUnique.mockResolvedValueOnce(null);
     const res = await server.executeOperation({
-      query: `mutation($contentId: ID!) { deleteContent(contentId: $contentId) }`,
-      variables: { contentId: '999' }
+      query: `mutation($id: ID!) { deleteContent(id: $id) }`,
+      variables: { id: '999' }
     });
     const data = (res as any).body.singleResult.data;
     expect(data.deleteContent).toBe(false);
@@ -250,9 +264,9 @@ describe('GraphQL Resolvers', () => {
 
   it('should delete the content from both Postgres and Neo4j and return true when contentId exists', async () => {
     // First call: Check if content exists
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ contentId: '1' }] });
-    // Second call: Delete from Postgres
-    mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    mockPrisma.content.findUnique.mockResolvedValueOnce({ id: '1' });
+    // Mock Prisma delete
+    mockPrisma.content.delete.mockResolvedValueOnce({ id: '1' });
     
     // Mock Neo4j deletion with count
     neo4jSessionMock.run.mockResolvedValueOnce({ 
@@ -267,8 +281,8 @@ describe('GraphQL Resolvers', () => {
     });
 
     const res = await server.executeOperation({
-      query: `mutation($contentId: ID!) { deleteContent(contentId: $contentId) }`,
-      variables: { contentId: '1' }
+      query: `mutation($id: ID!) { deleteContent(id: $id) }`,
+      variables: { id: '1' }
     });
     const data = (res as any).body.singleResult.data;
     expect(data.deleteContent).toBe(true);
@@ -281,13 +295,13 @@ describe('GraphQL Resolvers', () => {
     // Mutation - login
     it('should successfully login with valid Firebase token', async () => {
       const mockUser = {
-        userid: 'user-123',
-        firstname: 'John',
-        lastname: 'Doe',
+        id: 'user-123',
+        firstName: 'John',
+        lastName: 'Doe',
         email: 'john@example.com',
-        firebaseuid: 'firebase-uid-123',
-        createdat: new Date(),
-        updatedat: new Date()
+        firebaseUid: 'firebase-uid-123',
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
       
       // Mock Firebase token verification
@@ -297,12 +311,12 @@ describe('GraphQL Resolvers', () => {
       });
       
       // Mock user lookup by firebaseUid
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
       
       const res = await server.executeOperation({
         query: `mutation($idToken: String!) { 
           login(idToken: $idToken) { 
-            user { userId firstName lastName email firebaseUid createdAt } 
+            user { id firstName lastName email firebaseUid createdAt } 
             token 
           } 
         }`,
@@ -311,7 +325,7 @@ describe('GraphQL Resolvers', () => {
       
       const data = (res as any).body.singleResult.data;
       expect(data.login.user).toMatchObject({
-        userId: 'user-123',
+        id: 'user-123',
         firstName: 'John',
         lastName: 'Doe',
         email: 'john@example.com',
@@ -328,7 +342,7 @@ describe('GraphQL Resolvers', () => {
       const res = await server.executeOperation({
         query: `mutation($idToken: String!) { 
           login(idToken: $idToken) { 
-            user { userId } 
+            user { id } 
             token 
           } 
         }`,
@@ -348,12 +362,12 @@ describe('GraphQL Resolvers', () => {
       });
       
       // Mock user not found
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       
       const res = await server.executeOperation({
         query: `mutation($idToken: String!) { 
           login(idToken: $idToken) { 
-            user { userId } 
+            user { id } 
             token 
           } 
         }`,
@@ -368,13 +382,13 @@ describe('GraphQL Resolvers', () => {
     // Mutation - createUser
     it('should successfully create a new user', async () => {
       const mockUser = {
-        userid: 'new-user-123',
-        firstname: 'Jane',
-        lastname: 'Smith',
+        id: 'new-user-123',
+        firstName: 'Jane',
+        lastName: 'Smith',
         email: 'jane@example.com',
-        firebaseuid: 'firebase-uid-456',
-        createdat: new Date(),
-        updatedat: new Date()
+        firebaseUid: 'firebase-uid-456',
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
       
       // Mock Firebase token verification
@@ -384,16 +398,16 @@ describe('GraphQL Resolvers', () => {
       });
       
       // Mock check for existing user by firebaseUid
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       // Mock check for existing user by email
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       // Mock user creation
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
+      mockPrisma.user.create.mockResolvedValueOnce(mockUser);
       
       const res = await server.executeOperation({
         query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
           createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
-            user { userId firstName lastName email firebaseUid createdAt } 
+            user { id firstName lastName email firebaseUid createdAt } 
             token 
           } 
         }`,
@@ -406,7 +420,7 @@ describe('GraphQL Resolvers', () => {
       
       const data = (res as any).body.singleResult.data;
       expect(data.createUser.user).toMatchObject({
-        userId: 'new-user-123',
+        id: 'new-user-123',
         firstName: 'Jane',
         lastName: 'Smith',
         email: 'jane@example.com',
@@ -423,12 +437,12 @@ describe('GraphQL Resolvers', () => {
       });
       
       // Mock user already exists by firebaseUid
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ firebaseuid: 'firebase-uid-existing' }] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ firebaseUid: 'firebase-uid-existing' });
       
       const res = await server.executeOperation({
         query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
           createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
-            user { userId } 
+            user { id } 
             token 
           } 
         }`,
@@ -444,63 +458,32 @@ describe('GraphQL Resolvers', () => {
       expect(errors?.[0].message).toMatch('User with this Firebase UID already exists');
     });
 
-    it('should return error when creating user with existing email', async () => {
-      // Mock Firebase token verification
-      mockVerifyIdToken.mockResolvedValueOnce({
-        uid: 'firebase-uid-new',
-        email: 'existing@example.com'
-      });
-      
-      // Mock user doesn't exist by firebaseUid
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
-      // Mock user already exists by email
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ email: 'existing@example.com' }] });
-      
-      const res = await server.executeOperation({
-        query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
-          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
-            user { userId } 
-            token 
-          } 
-        }`,
-        variables: { 
-          idToken: 'valid-firebase-token',
-          firstName: 'John', 
-          lastName: 'Doe'
-        }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('User with this email already exists');
-    });
-
     // Query - getUser
     it('should return user when userId exists', async () => {
       const mockUser = {
-        userid: 'user-123',
-        firstname: 'John',
-        lastname: 'Doe',
+        id: 'user-123',
+        firstName: 'John',
+        lastName: 'Doe',
         email: 'john@example.com',
-        firebaseuid: 'firebase-uid-123',
-        createdat: new Date(),
-        updatedat: new Date()
+        firebaseUid: 'firebase-uid-123',
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
       
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
       
       const res = await server.executeOperation({
-        query: `query($userId: ID!) { 
-          getUser(userId: $userId) { 
-            userId firstName lastName email firebaseUid createdAt updatedAt 
+        query: `query($id: ID!) { 
+          getUser(id: $id) { 
+            id firstName lastName email firebaseUid createdAt updatedAt 
           } 
         }`,
-        variables: { userId: 'user-123' }
+        variables: { id: 'user-123' }
       });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getUser).toMatchObject({
-        userId: 'user-123',
+        id: 'user-123',
         firstName: 'John',
         lastName: 'Doe',
         email: 'john@example.com',
@@ -509,507 +492,182 @@ describe('GraphQL Resolvers', () => {
     });
 
     it('should return error when userId does not exist', async () => {
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       
       const res = await server.executeOperation({
-        query: `query($userId: ID!) { 
-          getUser(userId: $userId) { 
-            userId firstName 
+        query: `query($id: ID!) { 
+          getUser(id: $id) { 
+            id firstName 
           } 
         }`,
-        variables: { userId: 'nonexistent-user' }
+        variables: { id: 'nonexistent-user' }
       });
       
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
       expect(errors?.[0].message).toMatch('User not found');
-    });
-
-    // Query - getUserByEmail
-    it('should return user when email exists', async () => {
-      const mockUser = {
-        userid: 'user-123',
-        firstname: 'John',
-        lastname: 'Doe',
-        email: 'john@example.com',
-        createdat: new Date(),
-        updatedat: new Date()
-      };
-      
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockUser] });
-      
-      const res = await server.executeOperation({
-        query: `query($email: String!) { 
-          getUserByEmail(email: $email) { 
-            userId firstName lastName email 
-          } 
-        }`,
-        variables: { email: 'john@example.com' }
-    });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.getUserByEmail).toMatchObject({
-        userId: 'user-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com'
-      });
-    });
-
-    // Query - getAllUsers
-    it('should return all users', async () => {
-      const mockUsers = [
-        {
-          userid: 'user-1',
-          firstname: 'John',
-          lastname: 'Doe',
-          email: 'john@example.com',
-          createdat: new Date(),
-          updatedat: new Date()
-        },
-        {
-          userid: 'user-2',
-          firstname: 'Jane',
-          lastname: 'Smith',
-          email: 'jane@example.com',
-          createdat: new Date(),
-          updatedat: new Date()
-        }
-      ];
-      
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 2, rows: mockUsers });
-      
-      const res = await server.executeOperation({
-        query: `query { 
-          getAllUsers { 
-            userId firstName lastName email createdAt 
-          } 
-        }`
-    });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.getAllUsers).toHaveLength(2);
-      expect(data.getAllUsers[0]).toMatchObject({
-        userId: 'user-1',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com'
-      });
-      expect(data.getAllUsers[1]).toMatchObject({
-        userId: 'user-2',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        email: 'jane@example.com'
-      });
-    });
-
-    // Mutation - updateUser
-    it('should successfully update user information', async () => {
-      const updatedUser = {
-        userid: 'user-123',
-        firstname: 'Jane',
-        lastname: 'Smith',
-        email: 'jane.smith@example.com',
-        createdat: new Date(),
-        updatedat: new Date()
-      };
-      
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
-      // Mock email not taken by another user
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
-      // Mock update successful
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [updatedUser] });
-      
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!, $firstName: String, $lastName: String, $email: String) { 
-          updateUser(userId: $userId, firstName: $firstName, lastName: $lastName, email: $email) { 
-            userId firstName lastName email updatedAt 
-          } 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          firstName: 'Jane',
-          lastName: 'Smith',
-          email: 'jane.smith@example.com'
-        }
-    });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.updateUser).toMatchObject({
-        userId: 'user-123',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        email: 'jane.smith@example.com'
-      });
-    });
-
-    it('should return error when email is already taken by another user', async () => {
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
-      // Mock email taken by another user
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-456' }] });
-      
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!, $email: String) { 
-          updateUser(userId: $userId, email: $email) { 
-            userId email 
-          } 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          email: 'taken@example.com'
-        }
-      });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('Email is already taken by another user');
-    });
-
-    // Mutation - deleteUser
-    it('should successfully delete user and return true', async () => {
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
-      // Mock Neo4j deletion
-      neo4jSessionMock.run.mockResolvedValueOnce({ records: [] });
-      // Mock content deletion from Postgres
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [] });
-      // Mock user deletion from Postgres
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [] });
-      
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!) { 
-          deleteUser(userId: $userId) 
-        }`,
-        variables: { userId: 'user-123' }
-      });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.deleteUser).toBe(true);
-    });
-
-    it('should return false when user does not exist', async () => {
-      // Mock user doesn't exist
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
-      
-      const res = await server.executeOperation({
-        query: `mutation($userId: ID!) { 
-          deleteUser(userId: $userId) 
-        }`,
-        variables: { userId: 'nonexistent-user' }
-      });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.deleteUser).toBe(false);
-    });
-  });
-
-  // Query - getContentByTag
-  describe('Content by Tag Queries', () => {
-    it('should return all content for a specific tag when user and tag exist', async () => {
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
-      
-      // Mock Neo4j to return content IDs for the tag
-      neo4jSessionMock.run.mockResolvedValueOnce({
-        records: [
-          { get: () => 'content-1' },
-          { get: () => 'content-2' }
-        ]
-      });
-      
-      // Mock Postgres to return content details
-      mockPgQuery.mockResolvedValueOnce({
-        rowCount: 2,
-        rows: [
-          {
-            contentid: 'content-1',
-            userid: 'user-123',
-            title: 'First Article',
-            type: 'article',
-            created_at: new Date(),
-            properties: { description: 'First article about software engineering' }
-          },
-          {
-            contentid: 'content-2',
-            userid: 'user-123',
-            title: 'Second Article',
-            type: 'article',
-            created_at: new Date(),
-            properties: { description: 'Second article about software engineering' }
-          }
-        ]
-      });
-
-      const res = await server.executeOperation({
-        query: `query($userId: ID!, $tagName: String!) { 
-          getContentByTag(userId: $userId, tagName: $tagName) { 
-            contentId title type properties 
-          } 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          tagName: 'software engineering'
-        }
-    });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.getContentByTag).toHaveLength(2);
-      expect(data.getContentByTag[0]).toMatchObject({
-        contentId: 'content-1',
-        title: 'First Article',
-        type: 'article'
-      });
-      expect(data.getContentByTag[1]).toMatchObject({
-        contentId: 'content-2',
-        title: 'Second Article',
-        type: 'article'
-      });
-    });
-
-    it('should return empty array when tag has no content', async () => {
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
-      
-      // Mock Neo4j to return no content for the tag
-      neo4jSessionMock.run.mockResolvedValueOnce({
-        records: []
-      });
-
-      const res = await server.executeOperation({
-        query: `query($userId: ID!, $tagName: String!) { 
-          getContentByTag(userId: $userId, tagName: $tagName) { 
-            contentId title 
-          } 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          tagName: 'nonexistent-tag'
-        }
-    });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.getContentByTag).toHaveLength(0);
-    });
-
-    it('should return error when user does not exist', async () => {
-      // Mock user doesn't exist
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
-
-      const res = await server.executeOperation({
-        query: `query($userId: ID!, $tagName: String!) { 
-          getContentByTag(userId: $userId, tagName: $tagName) { 
-            contentId title 
-          } 
-        }`,
-        variables: { 
-          userId: 'nonexistent-user',
-          tagName: 'software engineering'
-        }
-    });
-      
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('User not found');
-    });
-
-    it('should return empty array when tag does not exist', async () => {
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ userid: 'user-123' }] });
-      
-      // Mock Neo4j to return no content for the non-existent tag
-      neo4jSessionMock.run.mockResolvedValueOnce({
-        records: []
-      });
-
-      const res = await server.executeOperation({
-        query: `query($userId: ID!, $tagName: String!) { 
-          getContentByTag(userId: $userId, tagName: $tagName) { 
-            contentId title 
-          } 
-        }`,
-        variables: { 
-          userId: 'user-123',
-          tagName: 'nonexistent-tag'
-        }
-    });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.getContentByTag).toHaveLength(0);
     });
   });
 
   // Query - getUserGraphDates
   describe('User Graph Dates', () => {
-    it('should return min createdAt and max updatedAt dates when user has content', async () => {
-      const minDate = new Date('2024-01-01T00:00:00Z');
-      const maxDate = new Date('2024-12-31T23:59:59Z');
+    it('should return dashboard createdAt and updatedAt dates', async () => {
+      const createdDate = new Date('2024-01-01T00:00:00Z');
+      const updatedDate = new Date('2024-12-31T23:59:59Z');
       
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ 
-        rowCount: 1, 
-        rows: [{ userid: 'user-123' }] 
-      });
-      
-      // Mock dates query result
-      mockPgQuery.mockResolvedValueOnce({
-        rowCount: 1,
-        rows: [{
-          mincreatedat: minDate,
-          maxupdatedat: maxDate
-        }]
+      // Mock dashboard exists
+      mockPrisma.dashboard.findUnique.mockResolvedValueOnce({
+        id: 'dashboard-123',
+        userId: 'user-123',
+        name: 'Test Dashboard',
+        createdAt: createdDate,
+        updatedAt: updatedDate,
+        publicUrl: null
       });
 
       const res = await server.executeOperation({
-        query: `query($firebaseUid: String!) { 
-          getUserGraphDates(firebaseUid: $firebaseUid) { 
+        query: `query($dashboardId: ID!) { 
+          getUserGraphDates(dashboardId: $dashboardId) { 
             createdAt 
             updatedAt 
           } 
         }`,
         variables: { 
-          firebaseUid: 'test-firebase-uid'
+          dashboardId: 'dashboard-123'
         }
       });
       
       const data = (res as any).body.singleResult.data;
       expect(data.getUserGraphDates).toBeDefined();
-      expect(new Date(data.getUserGraphDates.createdAt).getTime()).toBe(minDate.getTime());
-      expect(new Date(data.getUserGraphDates.updatedAt).getTime()).toBe(maxDate.getTime());
+      expect(new Date(data.getUserGraphDates.createdAt).getTime()).toBe(createdDate.getTime());
+      expect(new Date(data.getUserGraphDates.updatedAt).getTime()).toBe(updatedDate.getTime());
     });
 
-    it('should return null dates when user has no content', async () => {
-      // Mock user exists
-      mockPgQuery.mockResolvedValueOnce({ 
-        rowCount: 1, 
-        rows: [{ userid: 'user-123' }] 
-      });
-      
-      // Mock dates query with no content
-      mockPgQuery.mockResolvedValueOnce({
-        rowCount: 0,
-        rows: []
-      });
+    it('should return error when dashboard does not exist', async () => {
+      // Mock dashboard doesn't exist
+      mockPrisma.dashboard.findUnique.mockResolvedValueOnce(null);
 
       const res = await server.executeOperation({
-        query: `query($firebaseUid: String!) { 
-          getUserGraphDates(firebaseUid: $firebaseUid) { 
+        query: `query($dashboardId: ID!) { 
+          getUserGraphDates(dashboardId: $dashboardId) { 
             createdAt 
             updatedAt 
           } 
         }`,
         variables: { 
-          firebaseUid: 'test-firebase-uid'
-        }
-      });
-      
-      const data = (res as any).body.singleResult.data;
-      expect(data.getUserGraphDates).toBeDefined();
-      expect(data.getUserGraphDates.createdAt).toBeNull();
-      expect(data.getUserGraphDates.updatedAt).toBeNull();
-    });
-
-    it('should return error when user does not exist', async () => {
-      // Mock user doesn't exist
-      mockPgQuery.mockResolvedValueOnce({ 
-        rowCount: 0, 
-        rows: [] 
-      });
-
-      const res = await server.executeOperation({
-        query: `query($firebaseUid: String!) { 
-          getUserGraphDates(firebaseUid: $firebaseUid) { 
-            createdAt 
-            updatedAt 
-          } 
-        }`,
-        variables: { 
-          firebaseUid: 'nonexistent-firebase-uid'
+          dashboardId: 'nonexistent-dashboard-id'
         }
       });
       
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch('User not found');
+      expect(errors?.[0].message).toMatch('Dashboard not found');
     });
+
   });
 
   // Mutation - updateContent
   describe('Content Updates', () => {
     it('should successfully update content title', async () => {
       const mockContent = {
-        contentid: 'content-1',
-        userid: 'user-123',
+        id: 'content-1',
+        userId: 'user-123',
+        dashboardId: 'dashboard-1',
         title: 'Original Title',
         type: 'article',
-        created_at: new Date(),
+        createdAt: new Date(),
         properties: { description: 'Original description' }
+      };
+
+      const updatedContent = {
+        ...mockContent,
+        title: 'Updated Title'
       };
       
       // Mock content exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockContent] });
+      mockPrisma.content.findUnique.mockResolvedValueOnce(mockContent);
       
       // Mock update successful
-      mockPgQuery.mockResolvedValueOnce({
-        rowCount: 1,
-        rows: [{
-          ...mockContent,
-          title: 'Updated Title'
-        }]
+      mockPrisma.content.update.mockResolvedValueOnce(updatedContent);
+
+      // Mock dashboard update for updatedAt timestamp
+      mockPrisma.dashboard.update.mockResolvedValueOnce({
+        id: 'dashboard-1',
+        userId: 'user-123',
+        name: 'Test Dashboard',
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
 
       const res = await server.executeOperation({
-        query: `mutation($contentId: ID!, $title: String) { 
-          updateContent(contentId: $contentId, title: $title) { 
-            contentId title type properties 
+        query: `mutation($id: ID!, $title: String) { 
+          updateContent(id: $id, title: $title) { 
+            id title type properties 
           } 
         }`,
         variables: { 
-          contentId: 'content-1',
+          id: 'content-1',
           title: 'Updated Title'
         }
     });
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateContent).toMatchObject({
-        contentId: 'content-1',
+        id: 'content-1',
         title: 'Updated Title',
         type: 'article'
+      });
+      // Verify that dashboard.update was called to update the updatedAt timestamp
+      expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({
+        where: { id: 'dashboard-1' },
+        data: { updatedAt: expect.any(Date) }
       });
     });
 
     it('should successfully update content type and properties', async () => {
       const mockContent = {
-        contentid: 'content-1',
-        userid: 'user-123',
+        id: 'content-1',
+        userId: 'user-123',
+        dashboardId: 'dashboard-1',
         title: 'Test Content',
         type: 'article',
-        created_at: new Date(),
+        createdAt: new Date(),
         properties: { description: 'Original description' }
+      };
+
+      const updatedContent = {
+        id: 'content-1',
+        userId: 'user-123',
+        dashboardId: 'dashboard-1',
+        title: 'Test Content',
+        type: 'tutorial',
+        createdAt: new Date(),
+        properties: { description: 'Updated description', difficulty: 'intermediate' }
       };
       
       // Mock content exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockContent] });
+      mockPrisma.content.findUnique.mockResolvedValueOnce(mockContent);
       
       // Mock update successful
-      mockPgQuery.mockResolvedValueOnce({
-        rowCount: 1,
-        rows: [{
-          ...mockContent,
-          type: 'tutorial',
-          properties: { description: 'Updated description', difficulty: 'intermediate' }
-        }]
+      mockPrisma.content.update.mockResolvedValueOnce(updatedContent);
+
+      // Mock dashboard update for updatedAt timestamp
+      mockPrisma.dashboard.update.mockResolvedValueOnce({
+        id: 'dashboard-1',
+        userId: 'user-123',
+        name: 'Test Dashboard',
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
 
       const res = await server.executeOperation({
-        query: `mutation($contentId: ID!, $type: String, $properties: JSON) { 
-          updateContent(contentId: $contentId, type: $type, properties: $properties) { 
-            contentId title type properties 
+        query: `mutation($id: ID!, $type: String, $properties: JSON) { 
+          updateContent(id: $id, type: $type, properties: $properties) { 
+            id title type properties 
           } 
         }`,
         variables: { 
-          contentId: 'content-1',
+          id: 'content-1',
           type: 'tutorial',
           properties: { description: 'Updated description', difficulty: 'intermediate' }
         }
@@ -1017,58 +675,81 @@ describe('GraphQL Resolvers', () => {
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateContent).toMatchObject({
-        contentId: 'content-1',
+        id: 'content-1',
         title: 'Test Content',
         type: 'tutorial',
         properties: { description: 'Updated description', difficulty: 'intermediate' }
+      });
+      // Verify that dashboard.update was called to update the updatedAt timestamp
+      expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({
+        where: { id: 'dashboard-1' },
+        data: { updatedAt: expect.any(Date) }
       });
     });
 
     it('should return existing content when no updates provided', async () => {
       const mockContent = {
-        contentid: 'content-1',
-        userid: 'user-123',
+        id: 'content-1',
+        userId: 'user-123',
+        dashboardId: 'dashboard-1',
         title: 'Test Content',
         type: 'article',
-        created_at: new Date(),
+        createdAt: new Date(),
         properties: { description: 'Test description' }
       };
       
       // Mock content exists
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 1, rows: [mockContent] });
+      mockPrisma.content.findUnique.mockResolvedValueOnce(mockContent);
+      
+      // Mock update returns same content (no changes provided)
+      mockPrisma.content.update.mockResolvedValueOnce(mockContent);
+
+      // Mock dashboard update for updatedAt timestamp
+      mockPrisma.dashboard.update.mockResolvedValueOnce({
+        id: 'dashboard-1',
+        userId: 'user-123',
+        name: 'Test Dashboard',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
 
       const res = await server.executeOperation({
-        query: `mutation($contentId: ID!) { 
-          updateContent(contentId: $contentId) { 
-            contentId title type properties 
+        query: `mutation($id: ID!) { 
+          updateContent(id: $id) { 
+            id title type properties 
           } 
         }`,
         variables: { 
-          contentId: 'content-1'
+          id: 'content-1'
         }
     });
       
       const data = (res as any).body.singleResult.data;
       expect(data.updateContent).toMatchObject({
-        contentId: 'content-1',
+        id: 'content-1',
         title: 'Test Content',
         type: 'article',
         properties: { description: 'Test description' }
+      });
+      // Verify that dashboard.update was called to update the updatedAt timestamp
+      expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({
+        where: { id: 'dashboard-1' },
+        data: { updatedAt: expect.any(Date) }
       });
     });
 
     it('should return error when content does not exist', async () => {
       // Mock content doesn't exist
-      mockPgQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+      mockPrisma.content.findUnique.mockResolvedValueOnce(null);
 
       const res = await server.executeOperation({
-        query: `mutation($contentId: ID!, $title: String) { 
-          updateContent(contentId: $contentId, title: $title) { 
-            contentId title 
+        query: `mutation($id: ID!, $title: String) { 
+          updateContent(id: $id, title: $title) { 
+            id title 
           } 
         }`,
         variables: { 
-          contentId: 'nonexistent-content',
+          id: 'nonexistent-content',
           title: 'Updated Title'
         }
     });
@@ -1076,6 +757,95 @@ describe('GraphQL Resolvers', () => {
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
       expect(errors?.[0].message).toMatch('Content not found');
+    });
+  });
+
+  // Mutation - createDashboard
+  describe('createDashboard', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should create a new dashboard for a user', async () => {
+      const mockUser = {
+        id: 'user-123',
+        firebaseUid: 'test-firebase-uid',
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User'
+      };
+
+      const mockDashboard = {
+        id: 'dashboard-123',
+        userId: 'user-123',
+        name: 'My Dashboard',
+        createdAt: new Date('2026-01-18'),
+        updatedAt: null,
+        publicUrl: null
+      };
+
+      // Mock getUserIdByFirebaseUid
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
+      
+      // Mock dashboard creation
+      mockPrisma.dashboard.create.mockResolvedValueOnce(mockDashboard);
+
+      const res = await server.executeOperation({
+        query: `mutation($firebaseUid: String!, $name: String!) { 
+          createDashboard(firebaseUid: $firebaseUid, name: $name) { 
+            id userId name createdAt updatedAt publicUrl
+          } 
+        }`,
+        variables: { 
+          firebaseUid: 'test-firebase-uid',
+          name: 'My Dashboard'
+        }
+      });
+      
+      const data = (res as any).body.singleResult.data;
+      expect(data.createDashboard).toMatchObject({
+        id: 'dashboard-123',
+        userId: 'user-123',
+        name: 'My Dashboard'
+      });
+      
+      // Verify Prisma methods were called correctly
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { firebaseUid: 'test-firebase-uid' },
+        select: { id: true }
+      });
+      expect(mockPrisma.dashboard.create).toHaveBeenCalledWith({
+        data: {
+          name: 'My Dashboard',
+          user: {
+            connect: { id: 'user-123' }
+          }
+        }
+      });
+    });
+
+    it('should throw an error if firebaseUid does not exist', async () => {
+      // Mock user not found
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      const res = await server.executeOperation({
+        query: `mutation($firebaseUid: String!, $name: String!) { 
+          createDashboard(firebaseUid: $firebaseUid, name: $name) { 
+            id name 
+          } 
+        }`,
+        variables: { 
+          firebaseUid: 'nonexistent-firebase-uid',
+          name: 'My Dashboard'
+        }
+      });
+      
+      const errors = (res as any).body?.singleResult?.errors;
+      expect(errors).toBeDefined();
+      expect(errors?.[0].message).toMatch('User not found');
+      
+      // Verify dashboard.create was never called
+      expect(mockPrisma.dashboard.create).not.toHaveBeenCalled();
     });
   });
 });

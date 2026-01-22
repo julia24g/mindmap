@@ -3,16 +3,19 @@
     "rootDir": "src",
     "rootDirs": ["src"],
     "outDir": "dist",
-    "lib": ["es2020"],
-    "target": "es2020",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "lib": ["es2023"],
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "types": ["node"]
+    "types": ["node", "jest"],
+    "strict": true,
+    "ignoreDeprecations": "5.0"
   }
 ,
   "exclude": [
+    "prisma.config.ts",
     "__mocks__",
     "tests",
     "tests/**",

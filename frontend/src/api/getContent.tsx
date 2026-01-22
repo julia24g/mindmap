@@ -3,7 +3,7 @@ import { Content } from "@/types";
 
 const GET_CONTENT = gql`
   query GetContent($contentId: ID!, $firebaseUid: String!) {
-    content(contentId: $contentId, firebaseUid: $firebaseUid) {
+    getContent(contentId: $contentId, firebaseUid: $firebaseUid) {
       contentId
       userId
       title
@@ -20,7 +20,7 @@ export interface GetContentInput {
 }
 
 export interface GetContentData {
-  content: Content;
+  getContent: Content;
 }
 
 export function useGetContent(contentId: string, firebaseUid: string) {
@@ -36,7 +36,7 @@ export function useGetContent(contentId: string, firebaseUid: string) {
   });
 
   return {
-    content: data?.content,
+    content: data?.getContent,
     loading,
     error,
     refetch,

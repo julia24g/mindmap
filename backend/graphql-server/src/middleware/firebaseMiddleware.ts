@@ -1,9 +1,19 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-const serviceAccount = require('../../firebaseServiceAccount.json');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+const serviceAccount = JSON.parse(
+  readFileSync(join(__dirname, "../firebaseServiceAccount.json"), "utf-8")
+);
 
-export default admin;
+// Prevent "app already exists" in dev / hot reload
+if (getApps().length === 0) {
+  initializeApp({
+    credential: cert(serviceAccount),
+  });
+}
+

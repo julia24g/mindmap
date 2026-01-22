@@ -30,22 +30,31 @@ describe('Integration Tests', () => {
   let pgContainer: any;
   let neo4jContainer: any;
 
-  let pgPool: any;
+  let prisma: any;
   let neo4jDriver: any;
   let typeDefs: any;
   let resolvers: any;
 
   beforeAll(async () => {
+    console.log('🔧 Starting beforeAll hook...');
     jest.setTimeout(120_000);
-    pgContainer = await new PostgreSqlContainer('postgres:15')
-      .withDatabase('testdb')
-      .withUsername('testuser')
-      .withPassword('testpass')
-      .start();
+    
+    try {
+      console.log('🐘 Starting Postgres container...');
+      pgContainer = await new PostgreSqlContainer('postgres:15')
+        .withDatabase('testdb')
+        .withUsername('testuser')
+        .withPassword('testpass')
+        .start();
+      console.log('✅ Postgres container started');
 
-    neo4jContainer = await new Neo4jContainer('neo4j:5')
-      .withPassword('testpass')
-      .start();
+      console.log('🔗 Starting Neo4j container...');
+      neo4jContainer = await new Neo4jContainer('neo4j:5')
+        .withPassword('testpass')
+        .start();
+      console.log('✅ Neo4j container started');
+
+      console.log('✅ Neo4j container started');
 
     process.env.PG_HOST = pgContainer.getHost();
     process.env.PG_PORT = String(pgContainer.getPort());
@@ -58,23 +67,40 @@ describe('Integration Tests', () => {
     process.env.NEO4J_USER = neo4jContainer.getUsername();
     process.env.NEO4J_PASSWORD = neo4jContainer.getPassword();
 
+    console.log('📦 Importing schema and resolvers...');
     ({ typeDefs } = await import('../src/schema'));
     ({ resolvers } = await import('../src/resolvers'));
+    console.log('✅ Schema and resolvers imported');
 
-    ({ pgPool } = await import('../src/db/postgres'));
+    console.log('🔗 Importing Neo4j driver...');
     ({ neo4jDriver } = await import('../src/db/neo4j'));
+    console.log('✅ Neo4j driver imported');
 
+    // Import and initialize Prisma Client
+    console.log('💾 Importing Prisma...');
+    ({ prisma } = await import('../src/lib/prisma'));
+    console.log('✅ Prisma imported');
+
+    // Run Prisma migrations
+    console.log('🔄 Running Prisma migrations...');
+    const { execSync } = await import('child_process');
     try {
-      const fs = await import('fs/promises');
-      const path = await import('path');
-      const sqlPath = path.join(__dirname, '..', 'database', 'postgres-init.sql');
-      const sql = await fs.readFile(sqlPath, 'utf8');
-      await pgPool.query(sql);
+      execSync('npx prisma migrate deploy', {
+        cwd: __dirname + '/..',
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          DATABASE_URL: `postgresql://${process.env.PG_USER}:${process.env.PG_PASSWORD}@${process.env.PG_HOST}:${process.env.PG_PORT}/${process.env.PG_DATABASE}`
+        }
+      });
+      console.log('✅ Prisma migrations completed');
     } catch (e) {
-      console.error('Failed to run init SQL:', e);
+      console.error('❌ Failed to run Prisma migrations:', e);
       throw e;
     }
 
+    console.log('🚀 Starting Apollo Server...');
+    console.log('🚀 Starting Apollo Server...');
     server = new ApolloServer({
       typeDefs,
       resolvers,
@@ -88,11 +114,18 @@ describe('Integration Tests', () => {
       },
     });
 
+    console.log('🌐 Starting standalone server...');
     const started = await startStandaloneServer(server, {
       listen: { port: 4001 }
     });
 
     url = started.url;
+    console.log(`✅ Server started at ${url}`);
+    console.log('✨ beforeAll hook completed successfully');
+    } catch (error) {
+      console.error('❌ Error in beforeAll hook:', error);
+      throw error;
+    }
   }, 120_000);
 
   afterAll(async () => {
@@ -103,7 +136,7 @@ describe('Integration Tests', () => {
     }
 
     try {
-      await pgPool?.end();
+      await prisma?.$disconnect();
     } catch (e) {
       // ignore
     }
@@ -132,9 +165,10 @@ describe('Integration Tests', () => {
   });
 
   async function cleanDatabases() {
-    if (pgPool) {
-      await pgPool.query('DELETE FROM contents');
-      await pgPool.query('DELETE FROM users');
+    if (prisma) {
+      await prisma.content.deleteMany({});
+      await prisma.dashboard.deleteMany({});
+      await prisma.user.deleteMany({});
     }
 
     if (neo4jDriver) {
@@ -161,19 +195,25 @@ describe('Integration Tests', () => {
     }
 
     it('should retrieve user graph with nodes and edges', async () => {
+    console.log('TEST STARTING...');
+    try {
     const llmScope = nock('http://localhost:8000')
       .persist()
       .post('/suggest-tags')
       .reply(200, { suggested_tags: ['alpha', 'beta'] });
 
+      console.log('Setting up nock...');
+
       const createUserMutation = `
         mutation CreateUser($idToken: String!, $firstName: String!, $lastName: String!) {
           createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) {
-            user { userId }
+            user { id }
             token
           }
         }
       `;
+
+      console.log('Creating user...');
 
       const createResp = await postGraphQL({
         query: createUserMutation,
@@ -183,22 +223,40 @@ describe('Integration Tests', () => {
           lastName: 'User'
         },
       });
-      const userId = createResp.data.data.createUser.user.userId;
+      console.log('User created:', JSON.stringify(createResp.data, null, 2));
+      const userId = createResp.data.data.createUser.user.id;
       const firebaseUid = 'test-firebase-uid'; // From the mocked Firebase token
 
-      const addContentMutation = `
-        mutation AddContent($firebaseUid: String!, $title: String!, $type: String, $properties: JSON) {
-          addContent(firebaseUid: $firebaseUid, title: $title, type: $type, properties: $properties) {
-            contentId
+      const createDashboardMutation = `
+        mutation CreateDashboard($firebaseUid: String!, $name: String!) {
+          createDashboard(firebaseUid: $firebaseUid, name: $name) {
+            id
           }
         }
       `;
 
-        const addResp1 = await postGraphQL({ query: addContentMutation, variables: { firebaseUid, title: 'First', type: 'note', properties: { description: 'd1' } } });
-        const contentId1 = addResp1.data.data.addContent.contentId;
+      const dashboardResp = await postGraphQL({
+        query: createDashboardMutation,
+        variables: {
+          firebaseUid,
+          name: 'Test Dashboard'
+        }
+      });
+      const dashboardId = dashboardResp.data.data.createDashboard.id;
 
-        const addResp2 = await postGraphQL({ query: addContentMutation, variables: { firebaseUid, title: 'Second', type: 'note', properties: { description: 'd2' } } });
-        const contentId2 = addResp2.data.data.addContent.contentId;
+      const addContentMutation = `
+        mutation AddContent($firebaseUid: String!, $dashboardId: ID!, $title: String!, $type: String, $properties: JSON) {
+          addContent(firebaseUid: $firebaseUid, dashboardId: $dashboardId, title: $title, type: $type, properties: $properties) {
+            id
+          }
+        }
+      `;
+
+        const addResp1 = await postGraphQL({ query: addContentMutation, variables: { firebaseUid, dashboardId, title: 'First', type: 'note', properties: { description: 'd1' } } });
+        const contentId1 = addResp1.data.data.addContent.id;
+
+        const addResp2 = await postGraphQL({ query: addContentMutation, variables: { firebaseUid, dashboardId, title: 'Second', type: 'note', properties: { description: 'd2' } } });
+        const contentId2 = addResp2.data.data.addContent.id;
 
       const getGraphQuery = `
         query GetUserGraph($firebaseUid: String!) {
@@ -248,6 +306,10 @@ describe('Integration Tests', () => {
         });
 
   nock.cleanAll();
+    } catch (error) {
+      console.error('Test error:', error);
+      throw error;
+    }
     });
   });
 });

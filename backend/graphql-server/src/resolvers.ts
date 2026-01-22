@@ -1,21 +1,27 @@
 import axios from 'axios';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pgPool } from './db/postgres';
 import { neo4jDriver } from './db/neo4j';
 import neo4j from 'neo4j-driver';
 import { GraphQLError } from 'graphql';
 import jwt from 'jsonwebtoken';
-import { mapUserFromPostgres, mapUsersFromPostgres, mapContentFromPostgres } from './utils';
 import * as admin from 'firebase-admin';
+import { prisma } from './lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-async function getUserIdByFirebaseUid(firebaseUid: string): Promise<number> {
-  const userResult = await pgPool.query('SELECT userId FROM users WHERE firebaseUid = $1', [firebaseUid]);
-  if (userResult.rowCount === 0) {
+function getAdminAuth() {
+  return admin.auth();
+}
+
+async function getUserIdByFirebaseUid(firebaseUid: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { firebaseUid },
+    select: { id: true }
+  });
+  if (!user) {
     throw new GraphQLError('User not found');
   }
-  return userResult.rows[0].userid;
+  return user.id;
 }
 
 export const resolvers = {
@@ -23,47 +29,28 @@ export const resolvers = {
   JSON: GraphQLJSON,
   Query: {
     // User management queries
-    async getUser(_, { userId }) {
-      const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users WHERE userId = $1',
-        [userId]
-      );
-      if (!result.rows.length) {
+    async getUser(_: any, { id }: { id: string }) {
+      const user = await prisma.user.findUnique({
+        where: { id },
+      });
+      if (!user) {
         throw new GraphQLError('User not found');
       }
-      const user = result.rows[0];
-      return mapUserFromPostgres(user);
-    },
-    async getUserByEmail(_, { email }) {
-      const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users WHERE email = $1',
-        [email]
-      );
-      if (!result.rows.length) {
-        throw new GraphQLError('User not found');
-      }
-      const user = result.rows[0];
-      return mapUserFromPostgres(user);
-    },
-    async getAllUsers() {
-      const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users ORDER BY createdAt DESC'
-      );
-      
-      return mapUsersFromPostgres(result.rows);
+      return user;
     },
     // Get all content information
-    async content(_, { contentId, firebaseUid }) {
+    async getContent(_: any, { id, firebaseUid }: { id: string; firebaseUid: string }) {
       const userId = await getUserIdByFirebaseUid(firebaseUid);
-      // Fetch content from Postgres
-      const result = await pgPool.query('SELECT * FROM contents WHERE contentid = $1 AND userid = $2', [contentId, userId]);
-      if (!result.rows.length) {
+      const content = await prisma.content.findUnique({
+        where: { id },
+      });
+      if (!content) {
         throw new GraphQLError('Content not found');
       }
-      return mapContentFromPostgres(result.rows[0]);
+      return content;
     },
     // Get all nodes and edges in user knowledge graph
-    async get_user_graph(_, { firebaseUid }) {
+    async get_user_graph(_: any, { firebaseUid }: { firebaseUid: string }) {
       // Check if user exists in Postgres and get their userId
       const userId = await getUserIdByFirebaseUid(firebaseUid);
       const session = neo4jDriver.session();
@@ -148,7 +135,7 @@ export const resolvers = {
       }
     },
     // Get all tags from Neo4j
-    async allTags(_, { limit }) {
+    async allTags(_: any, { limit }: { limit?: number }) {
       const session = neo4jDriver.session();
       try {
         const query = limit 
@@ -160,111 +147,61 @@ export const resolvers = {
         await session.close();
       }
     },
-    // Get all content for a specific tag
-    async getContentByTag(_, { userId, tagName }) {
-      // Check if user exists in Postgres
-      const userResult = await pgPool.query('SELECT 1 FROM users WHERE userId = $1', [userId]);
-      if (userResult.rowCount === 0) {
-        throw new GraphQLError('User not found');
+    // Get createdAt and updatedAt dates for user dashboard
+    async getUserGraphDates(_: any, { dashboardId }: { dashboardId: string }) {      
+      // Get dashboard
+      const dashboard = await prisma.dashboard.findUnique({
+        where: { id: dashboardId }
+      });
+      
+      if (!dashboard) {
+        throw new GraphQLError('Dashboard not found');
       }
 
-      const session = neo4jDriver.session();
-      try {
-        // Find all content nodes connected to the specified tag
-        const result = await session.run(
-          `
-          MATCH (t:Tag {name: $tagName})-[:DESCRIBES]->(c:Content {userId: $userId})
-          RETURN c.contentId AS contentId
-          `,
-          { tagName, userId }
-        );
-
-        if (result.records.length === 0) {
-          return [];
-        }
-
-        // Get content IDs from Neo4j results
-        const contentIds = result.records.map(record => record.get('contentId'));
-
-        // Fetch content details from Postgres
-        const placeholders = contentIds.map((_, index) => `$${index + 1}`).join(',');
-        const contentResult = await pgPool.query(
-          `SELECT * FROM contents WHERE contentid = ANY($1) AND userid = $2`,
-          [contentIds, userId]
-        );
-
-        return contentResult.rows.map(mapContentFromPostgres);
-      } finally {
-        await session.close();
-      }
-    },
-    // Get min createdAt and max updatedAt dates for user's content
-    async getUserGraphDates(_, { firebaseUid }) {
-      const userId = await getUserIdByFirebaseUid(firebaseUid);
-      
-      // Get min createdAt and max createdAt from content for this user
-      const datesResult = await pgPool.query(
-        'SELECT MIN(created_at) as minCreatedAt, MAX(created_at) as maxUpdatedAt FROM contents WHERE userid = $1',
-        [userId]
-      );
-      
-      // If user has no content, return null for both dates
-      if (datesResult.rows.length === 0 || !datesResult.rows[0].mincreatedat) {
-        return {
-          createdAt: null,
-          updatedAt: null
-        };
-      }
-      
       return {
-        createdAt: datesResult.rows[0].mincreatedat,
-        updatedAt: datesResult.rows[0].maxupdatedat
-      };
+        createdAt: dashboard.createdAt,
+        updatedAt: dashboard.updatedAt
+      }
     }
   },
   Mutation: {
     // User management mutations
-    async login(_, { idToken }) {
+    async login(_: any, { idToken }: { idToken: string }) {
       // Verify Firebase ID token
       let decodedToken;
       try {
-        decodedToken = await admin.auth().verifyIdToken(idToken);
+        decodedToken = await getAdminAuth().verifyIdToken(idToken);
       } catch (error) {
         throw new GraphQLError('Invalid Firebase ID token');
       }
 
       const firebaseUid = decodedToken.uid;
 
-      // Get user by firebaseUid
-      const result = await pgPool.query(
-        'SELECT userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt FROM users WHERE firebaseUid = $1',
-        [firebaseUid]
-      );
+      const user = await prisma.user.findUnique({
+        where: { firebaseUid },
+      });
       
-      if (!result.rows.length) {
+      if (!user) {
         throw new GraphQLError('User not found. Please create an account first.');
       }
       
-      const user = result.rows[0];
-      
       // Generate JWT token for your app
       const token = jwt.sign(
-        { userId: user.userid, email: user.email, firebaseUid: firebaseUid },
+        { userId: user.id, email: user.email, firebaseUid: firebaseUid },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
       
-      const mappedUser = mapUserFromPostgres(user);
       return {
-        user: mappedUser,
+        user: user,
         token
       };
     },
-    async createUser(_, { idToken, firstName, lastName }) {
+    async createUser(_: any, { idToken, firstName, lastName }: { idToken: string; firstName: string; lastName: string }) {
       // Verify Firebase ID token
       let decodedToken;
       try {
-        decodedToken = await admin.auth().verifyIdToken(idToken);
+        decodedToken = await getAdminAuth().verifyIdToken(idToken);
       } catch (error) {
         throw new GraphQLError('Invalid Firebase ID token');
       }
@@ -277,158 +214,64 @@ export const resolvers = {
       }
 
       // Check if user already exists by firebaseUid
-      const existingUserByUid = await pgPool.query(
-        'SELECT 1 FROM users WHERE firebaseUid = $1',
-        [firebaseUid]
-      );
+      const existingUser = await prisma.user.findUnique({
+        where: { firebaseUid },
+      });
       
-      if (existingUserByUid.rowCount > 0) {
+      if (existingUser) {
         throw new GraphQLError('User with this Firebase UID already exists');
       }
 
-      // Check if user already exists by email
-      const existingUserByEmail = await pgPool.query(
-        'SELECT 1 FROM users WHERE email = $1',
-        [email]
-      );
-      
-      if (existingUserByEmail.rowCount > 0) {
-        throw new GraphQLError('User with this email already exists');
-      }
-      
-      // Insert new user
-      const result = await pgPool.query(
-        'INSERT INTO users (firstName, lastName, email, firebaseUid) VALUES ($1, $2, $3, $4) RETURNING userId, firstName, lastName, email, firebaseUid, createdAt, updatedAt',
-        [firstName, lastName, email, firebaseUid]
-      );
-      
-      const user = result.rows[0];
-      const mappedUser = mapUserFromPostgres(user);
+      const user = await prisma.user.create({
+        data: {
+          firstName,
+          lastName,
+          email,
+          firebaseUid
+        }
+      });
       
       // Generate JWT token for your app
       const token = jwt.sign(
-        { userId: user.userid, email: user.email, firebaseUid: firebaseUid },
+        { userId: user.id, email: user.email, firebaseUid: firebaseUid },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
       
       return {
-        user: mappedUser,
+        user: user,
         token
       };
     },
-    async updateUser(_, { userId, firstName, lastName, email }) {
-      
-      // Check if user exists
-      const existingUser = await pgPool.query(
-        'SELECT 1 FROM users WHERE userId = $1',
-        [userId]
-      );
-      
-      if (existingUser.rowCount === 0) {
-        throw new GraphQLError('User not found');
-      }
-      
-      // Check if email is being changed and if it's already taken
-      if (email) {
-        const emailCheck = await pgPool.query(
-          'SELECT 1 FROM users WHERE email = $1 AND userId != $2',
-          [email, userId]
-        );
-        
-        if (emailCheck.rowCount > 0) {
-          throw new GraphQLError('Email is already taken by another user');
-        }
-      }
-      
-      // Build update query dynamically
-      const updates = [];
-      const values = [];
-      let paramCount = 1;
-      
-      if (firstName !== undefined) {
-        updates.push(`firstName = $${paramCount}`);
-        values.push(firstName);
-        paramCount++;
-      }
-      
-      if (lastName !== undefined) {
-        updates.push(`lastName = $${paramCount}`);
-        values.push(lastName);
-        paramCount++;
-      }
-      
-      if (email !== undefined) {
-        updates.push(`email = $${paramCount}`);
-        values.push(email);
-        paramCount++;
-      }
-      
-      updates.push(`updatedAt = NOW()`);
-      values.push(userId);
-      
-      const updateQuery = `
-        UPDATE users 
-        SET ${updates.join(', ')} 
-        WHERE userId = $${paramCount}
-        RETURNING userId, firstName, lastName, email, createdAt, updatedAt
-      `;
-      
-      const result = await pgPool.query(updateQuery, values);
-      
-      const user = result.rows[0];
-      
-      // Map PostgreSQL column names to GraphQL field names
-      return mapUserFromPostgres(user);
-    },
-    async deleteUser(_, { userId }) {
-      
-      // Check if user exists
-      const existingUser = await pgPool.query(
-        'SELECT 1 FROM users WHERE userId = $1',
-        [userId]
-      );
-      
-      if (existingUser.rowCount === 0) {
-        return false;
-      }
-      
-      // Delete user's content from Neo4j
-      const session = neo4jDriver.session();
-      try {
-        await session.run(
-          'MATCH (c:Content {userId: $userId}) DETACH DELETE c',
-          { userId }
-        );
-      } finally {
-        await session.close();
-      }
-      
-      // Delete user's content from Postgres
-      await pgPool.query(
-        'DELETE FROM contents WHERE userId = $1',
-        [userId]
-      );
-      
-      // Delete user from Postgres
-      const result = await pgPool.query(
-        'DELETE FROM users WHERE userId = $1',
-        [userId]
-      );
-      
-      return result.rowCount > 0;
-    },
     // Add new content, generate tags using LLM, insert into Postgres and Neo4j
-    async addContent(_, { firebaseUid, title, type, properties }) {
-      // 0. Look up user by Firebase UID and get internal userId
+    async addContent(_: any, { firebaseUid, dashboardId, title, type, properties }: { firebaseUid: string; dashboardId: string; title: string; type: string; properties: any }) {
       const userId = await getUserIdByFirebaseUid(firebaseUid);
-      // 1. Insert content into Postgres
-      const insertResult = await pgPool.query(
-        'INSERT INTO contents (userid, title, type, properties) VALUES ($1, $2, $3, $4) RETURNING *',
-        [userId, title, type, properties]
-      );
-      const content = insertResult.rows[0];
-      const contentId = content.contentid;
+      
+      // Verify that the dashboard belongs to the user
+      const dashboard = await prisma.dashboard.findUnique({
+        where: { id: dashboardId }
+      });
+      
+      if (!dashboard || dashboard.userId !== userId) {
+        throw new GraphQLError('Dashboard not found or unauthorized');
+      }
+
+      const content = await prisma.content.create({
+        data: {
+          dashboardId,
+          title,
+          type,
+          properties
+        }
+      });
+
+      // Update dashboard's updatedAt timestamp
+      await prisma.dashboard.update({
+        where: { id: dashboardId },
+        data: { updatedAt: new Date() }
+      });
+
+      const contentId = content.id;
 
       // 2. Call LLM service to generate tags
       let tags = [];
@@ -476,72 +319,42 @@ export const resolvers = {
       } finally {
         await session.close();
       }
-      return mapContentFromPostgres(content);
+      return content;
     },
     // Update existing content
-    async updateContent(_, { contentId, title, type, properties }) {
-      // Check if content exists in Postgres
-      const contentResult = await pgPool.query(
-        'SELECT * FROM contents WHERE contentid = $1', 
-        [contentId]
-      );
-      
-      if (contentResult.rowCount === 0) {
+    async updateContent(_: any, { id, title, type, properties }: { id: string; title: string; type: string; properties: any }) {
+      const content = await prisma.content.findUnique({
+        where: { id },
+      });
+
+      if (!content) {
         throw new GraphQLError('Content not found');
       }
 
-      const existingContent = contentResult.rows[0];
+      const updatedContent = await prisma.content.update({
+        where: { id },
+        data: {
+          title,
+          type,
+          properties
+        }
+      });
 
-      // Build update query dynamically
-      const updates = [];
-      const values = [];
-      let paramCount = 1;
+      // Update dashboard's updatedAt timestamp
+      await prisma.dashboard.update({
+        where: { id: content.dashboardId },
+        data: { updatedAt: new Date() }
+      });
       
-      if (title !== undefined) {
-        updates.push(`title = $${paramCount}`);
-        values.push(title);
-        paramCount++;
-      }
-      
-      if (type !== undefined) {
-        updates.push(`type = $${paramCount}`);
-        values.push(type);
-        paramCount++;
-      }
-      
-      if (properties !== undefined) {
-        updates.push(`properties = $${paramCount}`);
-        values.push(properties);
-        paramCount++;
-      }
-      
-      if (updates.length === 0) {
-        // No updates provided, return existing content
-        return mapContentFromPostgres(existingContent);
-      }
-      
-      values.push(contentId);
-      
-      const updateQuery = `
-        UPDATE contents 
-        SET ${updates.join(', ')} 
-        WHERE contentid = $${paramCount}
-        RETURNING *
-      `;
-      
-      const result = await pgPool.query(updateQuery, values);
-      const updatedContent = result.rows[0];
-      
-      return mapContentFromPostgres(updatedContent);
+      return updatedContent;
     },
     // Delete content from both Postgres and Neo4j
-    async deleteContent(_, { contentId }) {
-      const contentResult = await pgPool.query(
-        'SELECT 1 FROM contents WHERE contentId = $1', 
-        [contentId]
-      );
+    async deleteContent(_: any, { id }: { id: string }) {
+      const content = await prisma.content.findUnique({
+        where: { id },
+      });
       
-      if (contentResult.rowCount === 0) {
+      if (!content) {
         return false;
       }
 
@@ -549,19 +362,33 @@ export const resolvers = {
       try {
         const neo4jResult = await session.run(
           `MATCH (c:Content {contentId: $contentId}) DETACH DELETE c RETURN count(c) as deleted`,
-          { contentId }
+          { contentId: id }
         );
         const deletedCount = neo4jResult.records[0]?.get('deleted')?.toNumber() || 0;
+
+        const deleteContent = await prisma.content.delete({
+          where: { id },
+        });
         
-        const pgResult = await pgPool.query(
-          'DELETE FROM contents WHERE contentId = $1', 
-          [contentId]
-        );
-        
-        return pgResult.rowCount > 0 && deletedCount > 0;
+        return deleteContent !== null && deletedCount > 0;
       } finally {
         await session.close();
       }
+    },
+    // Create a new dashboard for a user
+    async createDashboard(_: any, { firebaseUid, name }: { firebaseUid: string; name: string }) {
+      const userId = await getUserIdByFirebaseUid(firebaseUid);
+
+      const dashboard = await prisma.dashboard.create({
+        data: {
+          name,
+          user: {
+            connect: { id: userId }
+          }
+        }
+      });
+
+      return dashboard;
     }
   }
 };

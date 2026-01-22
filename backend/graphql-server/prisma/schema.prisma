@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String      @id @default(uuid())
+  firstName    String      @db.Text
+  lastName     String      @db.Text
+  email        String      @unique @db.Text
+  firebaseUid  String      @unique @db.Text
+  createdAt    DateTime    @default(now()) @db.Timestamptz
+  updatedAt    DateTime?   @updatedAt @db.Timestamptz
+  dashboards   Dashboard[]
+}
+
+model Dashboard {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  name      String    @db.Text
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime? @updatedAt @db.Timestamptz
+  publicUrl String?   @unique @db.Text
+  contents  Content[]
+}
+
+model Content {
+  id          String    @id @default(uuid())
+  dashboardId String
+  dashboard   Dashboard @relation(fields: [dashboardId], references: [id])
+  title       String    @db.Text
+  type        String?   @db.Text
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime? @updatedAt @db.Timestamptz
+  properties  Json?
+}

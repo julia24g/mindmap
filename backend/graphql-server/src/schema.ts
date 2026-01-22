@@ -2,21 +2,30 @@ export const typeDefs = `#graphql
     scalar DateTime
     scalar JSON
     type Content {
-        contentId: ID!
-        userId: ID!
+        id: ID!
+        dashboardId: ID!
         title: String!
         type: String
-        created_at: DateTime!
+        createdAt: DateTime!
+        updatedAt: DateTime
         properties: JSON
     }
     type User {
-        userId: ID!
+        id: ID!
         firstName: String!
         lastName: String!
         email: String!
         firebaseUid: String!
         createdAt: DateTime!
         updatedAt: DateTime
+    }
+    type Dashboard {
+        id: ID!
+        userId: ID!
+        name: String!
+        createdAt: DateTime!
+        updatedAt: DateTime
+        publicUrl: String
     }
     type Tag {
         name: String!
@@ -25,7 +34,7 @@ export const typeDefs = `#graphql
     type Node {
         id: ID!
         label: String!
-        contentId: ID # For content nodes only
+        contentId: ID # For content nodes
         name: String # For tag nodes only
         title: String # For content nodes only
     }
@@ -48,30 +57,31 @@ export const typeDefs = `#graphql
     }
     type Query {
         get_user_graph(firebaseUid: String!): UserGraph
-        getUserGraphDates(firebaseUid: String!): UserGraphDates
-        content(contentId: ID!, firebaseUid: String!): Content
+        getUserGraphDates(dashboardId: ID!): UserGraphDates
+        getContent(id: ID!, firebaseUid: String!): Content
         allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
         # User management queries
-        getUser(userId: ID!): User
+        getUser(id: ID!): User
         getUserByEmail(email: String!): User
         getAllUsers: [User!]!
     }
     type Mutation {
         addContent(
             firebaseUid: String!
+            dashboardId: ID!
             title: String!
             type: String
             properties: JSON
         ): Content
         updateContent(
-            contentId: ID!
+            id: ID!
             title: String
             type: String
             properties: JSON
         ): Content
         deleteContent(
-            contentId: ID!
+            id: ID!
         ): Boolean
         # User management mutations
         login(idToken: String!): AuthResponse
@@ -81,11 +91,16 @@ export const typeDefs = `#graphql
             lastName: String!
         ): AuthResponse
         updateUser(
-            userId: ID!
+            id: ID!
             firstName: String
             lastName: String
             email: String
         ): User
-        deleteUser(userId: ID!): Boolean
+        deleteUser(id: ID!): Boolean
+        # Dashboard mutations
+        createDashboard(
+            firebaseUid: String!
+            name: String!
+        ): Dashboard
     }
 `
