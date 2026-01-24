@@ -3,6 +3,7 @@ import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import Layout from "./layouts/DashboardLayout";
 
 function App() {
   return (
@@ -15,7 +16,9 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <Layout>
+                <DashboardPage />
+              </Layout>
             </ProtectedRoute>
           }
         />
