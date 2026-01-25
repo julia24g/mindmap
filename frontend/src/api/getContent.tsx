@@ -5,7 +5,7 @@ const GET_CONTENT = gql`
   query GetContent($contentId: ID!, $firebaseUid: String!) {
     getContent(contentId: $contentId, firebaseUid: $firebaseUid) {
       contentId
-      userId
+      id
       title
       type
       created_at

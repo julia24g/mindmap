@@ -15,7 +15,7 @@ const ADD_CONTENT = gql`
       properties: $properties
     ) {
       contentId
-      userId
+      id
       title
       type
       created_at

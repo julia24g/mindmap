@@ -25,7 +25,7 @@ import collide from "@/util/collision";
 import ContentNode from "@/components/nodetypes/ContentNode";
 import { Spinner } from "@/components/ui/spinner";
 import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
-import TagNode from "./nodetypes/TagNode";
+import TagNode from "../nodetypes/TagNode";
 
 const simulation = forceSimulation()
   .force("charge", forceManyBody().strength(-1000))
@@ -153,7 +153,7 @@ const LayoutFlow = ({
   useLayoutedElements(() => setIsLoading(false));
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden">
       {isLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
           <Item variant="muted">
@@ -169,6 +169,7 @@ const LayoutFlow = ({
         </div>
       )}
       <ReactFlow
+        style={{ width: "100%", height: "100%" }}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
@@ -197,7 +198,7 @@ export default function Layout({
   onNodeClick: (contentId: string) => void;
 }) {
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div className="w-full h-full min-w-0 min-h-0 overflow-hidden">
       <ReactFlowProvider>
         <LayoutFlow
           initialNodes={initialNodes}

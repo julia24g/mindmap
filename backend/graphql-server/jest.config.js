@@ -1,23 +1,21 @@
 /** @type {import('jest').Config} */
 export default {
-  preset: 'ts-jest/presets/default-esm',
-  testEnvironment: 'node',
-  extensionsToTreatAsEsm: ['.ts'],
+  preset: "ts-jest/presets/default-esm",
+  testEnvironment: "node",
+  extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
+    "^(\\.{1,2}/.*)\\.js$": "$1",
   },
-  transformIgnorePatterns: [
-    'node_modules/(?!(@prisma)/)',
-  ],
+  transformIgnorePatterns: ["node_modules/(?!(@prisma)/)"],
   transform: {
-    '^.+\\.tsx?$': [
-      'ts-jest',
+    "^.+\\.tsx?$": [
+      "ts-jest",
       {
         useESM: true,
-        tsconfig: 'tsconfig.test.json',
+        tsconfig: "tsconfig.test.json",
       },
     ],
   },
-  modulePathIgnorePatterns: ['<rootDir>/dist/'],
-  testPathIgnorePatterns: ['<rootDir>/dist/'],
+  modulePathIgnorePatterns: ["<rootDir>/dist/"],
+  testPathIgnorePatterns: ["<rootDir>/dist/"],
 };

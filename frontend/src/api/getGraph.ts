@@ -1,8 +1,8 @@
 import { gql, useQuery } from "@apollo/client";
 
-export const GET_USER_GRAPH = gql`
-  query GetUserGraph($firebaseUid: String!) {
-    getUserGraph(firebaseUid: $firebaseUid) {
+export const GET_GRAPH = gql`
+  query GetGraph($firebaseUid: String!, $dashboardId: ID!) {
+    getGraph(firebaseUid: $firebaseUid, dashboardId: $dashboardId) {
       nodes {
         id
         label
@@ -33,30 +33,31 @@ export interface Edge {
   type: string;
 }
 
-export interface UserGraph {
+export interface Graph {
   nodes: Node[];
   edges: Edge[];
 }
 
-export interface GetUserGraphInput {
+export interface GetGraphInput {
   firebaseUid: string;
+  dashboardId: string;
 }
 
-export interface GetUserGraphData {
-  getUserGraph: UserGraph;
+export interface GetGraphData {
+  getGraph: Graph;
 }
 
-export function useGetUserGraph(firebaseUid: string) {
+export function useGetGraph(firebaseUid: string, dashboardId: string) {
   const { data, loading, error, refetch } = useQuery<
-    GetUserGraphData,
-    GetUserGraphInput
-  >(GET_USER_GRAPH, {
-    variables: { firebaseUid },
-    skip: !firebaseUid,
+    GetGraphData,
+    GetGraphInput
+  >(GET_GRAPH, {
+    variables: { firebaseUid, dashboardId },
+    skip: !firebaseUid || !dashboardId,
   });
 
   return {
-    graph: data?.getUserGraph,
+    graph: data?.getGraph,
     loading,
     error,
     refetch,

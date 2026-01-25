@@ -56,9 +56,9 @@ export const typeDefs = `#graphql
         token: String!
     }
     type Query {
-        getUserGraph(firebaseUid: String!): UserGraph
-        getUserDashboards(firebaseUid: String!): [Dashboard!]!
-        getUserGraphDates(dashboardId: ID!): UserGraphDates
+        getGraph(firebaseUid: String!, dashboardId: ID!): UserGraph
+        getDashboards(firebaseUid: String!): [Dashboard!]!
+        getDashboard(firebaseUid: String!, dashboardId: ID!): Dashboard
         getContent(id: ID!, firebaseUid: String!): Content
         allTags(limit: Int): [String!]!
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
@@ -102,4 +102,4 @@ export const typeDefs = `#graphql
             name: String!
         ): Dashboard
     }
-`
+`;

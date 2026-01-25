@@ -12,8 +12,7 @@
     "types": ["node", "jest"],
     "strict": true,
     "ignoreDeprecations": "5.0"
-  }
-,
+  },
   "exclude": [
     "prisma.config.ts",
     "__mocks__",

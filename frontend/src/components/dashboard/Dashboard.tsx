@@ -1,10 +1,10 @@
 import { useMemo, useState, useCallback } from "react";
 import { toReactFlowFormat } from "@/util/graphTransform";
-import { useGetUserGraph } from "@/api/getUserGraph";
+import { useGetGraph } from "@/api/getGraph";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { NetworkIcon } from "lucide-react";
-import Layout from "@/components/Layout";
-import SplitView from "@/components/SplitView";
+import Layout from "@/components/graph/Layout";
+// import SplitView from "@/components/SplitView";
 import {
   Empty,
   EmptyDescription,
@@ -12,13 +12,19 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import MenuBar from "@/components/MenuBar";
+import { useParams } from "react-router-dom";
 
-export default function DashboardPage() {
+export default function Dashboard() {
+  const { dashboardId } = useParams<{ dashboardId: string }>();
   const { currentUser } = useAuthContext();
-  const { graph, loading, error, refetch } = useGetUserGraph(
-    currentUser?.uid || "",
+
+  const userId = currentUser?.uid ?? "";
+
+  const { graph, loading, error, refetch } = useGetGraph(
+    userId,
+    dashboardId ?? "",
   );
+
   const [selectedContentId, setSelectedContentId] = useState<string | null>(
     null,
   );
@@ -47,8 +53,7 @@ export default function DashboardPage() {
   const hasNoData = initialNodes.length === 0 && initialEdges.length === 0;
 
   return (
-    <div className="flex flex-col h-screen">
-      <MenuBar refetch={refetch} />
+    <div className="flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
       {hasNoData ? (
         <div className="flex-1">
           <Empty>
@@ -65,21 +70,23 @@ export default function DashboardPage() {
           </Empty>
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0">
-          <div className="flex-1">
-            <Layout
-              initialNodes={initialNodes}
-              initialEdges={initialEdges}
-              onNodeClick={handleNodeClick}
-            />
-          </div>
-          {isSplitViewOpen && (
+        +(
+          <div className="flex flex-1 min-h-0 min-w-0">
+            <div className="flex-1 min-w-0">
+              <Layout
+                initialNodes={initialNodes}
+                initialEdges={initialEdges}
+                onNodeClick={handleNodeClick}
+              />
+            </div>
+            {/* {isSplitViewOpen && (
             <SplitView
               contentId={selectedContentId}
               onClose={handleCloseSplitView}
             />
-          )}
-        </div>
+          )} */}
+          </div>
+        )
       )}
     </div>
   );

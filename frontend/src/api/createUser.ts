@@ -9,7 +9,7 @@ export const CREATE_USER = gql`
   ) {
     createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) {
       user {
-        userId
+        id
         firstName
         lastName
         email

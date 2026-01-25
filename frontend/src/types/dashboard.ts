@@ -1,5 +1,8 @@
 export interface Dashboard {
-    id: string;
-    name: string;
-    createdAt: string;
+  id: string;
+  userId: string;
+  name: string;
+  createdAt: string;
+  updatedAt?: string;
+  publicUrl?: string;
 }

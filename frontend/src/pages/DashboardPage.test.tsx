@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import DashboardPage from "./DashboardPage";
+import Dashboard from "../components/dashboard/Dashboard";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useGetUserGraph } from "@/api/getUserGraph";
+import { useGetGraph } from "@/api/getGraph";
 
 // Mock only API calls and responses
 vi.mock("@/contexts/AuthContext");
-vi.mock("@/api/getUserGraph");
+vi.mock("@/api/getGraph");
 
 // Mock AddContent to simplify testing
 vi.mock("@/components/AddContent", () => ({
@@ -30,14 +30,14 @@ describe("DashboardPage", () => {
       loading: false,
     });
 
-    vi.mocked(useGetUserGraph).mockReturnValue({
+    vi.mocked(useGetGraph).mockReturnValue({
       graph: undefined,
       loading: false,
       error: undefined,
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
 
@@ -54,7 +54,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
     expect(screen.getByTestId("add-content")).toBeInTheDocument();
   });
 
@@ -71,7 +71,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
     expect(
       screen.getByText("Error loading graph: Failed to fetch graph"),
     ).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
     expect(screen.getByText("No Knowledge Graph Yet")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -137,7 +137,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
     // Should render ReactFlow and not show empty state
     expect(
@@ -163,7 +163,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
     expect(
       screen.queryByText("No Knowledge Graph Yet"),
@@ -183,7 +183,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
     const addButton = screen.getByText("Add Content");
     addButton.click();
@@ -207,9 +207,9 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
-    expect(useGetUserGraph).toHaveBeenCalledWith(testUid);
+    expect(useGetGraph).toHaveBeenCalledWith(testUid);
   });
 
   it("handles missing currentUser gracefully", () => {
@@ -225,9 +225,9 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
-    expect(useGetUserGraph).toHaveBeenCalledWith("");
+    expect(useGetGraph).toHaveBeenCalledWith("");
   });
 
   it("renders graph with multiple nodes and edges", () => {
@@ -255,7 +255,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
     expect(
       screen.queryByText("No Knowledge Graph Yet"),
@@ -275,7 +275,7 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    render(<DashboardPage />);
+    render(<Dashboard />);
 
     // Should show empty state
     expect(screen.getByText("No Knowledge Graph Yet")).toBeInTheDocument();
@@ -299,10 +299,10 @@ describe("DashboardPage", () => {
       refetch: mockRefetch,
     });
 
-    const { rerender } = render(<DashboardPage />);
+    const { rerender } = render(<Dashboard />);
 
     // Rerender with same graph data
-    rerender(<DashboardPage />);
+    rerender(<Dashboard />);
 
     // The component should handle rerenders without errors
     expect(screen.getByText("Dashboard")).toBeInTheDocument();

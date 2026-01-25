@@ -1,34 +1,40 @@
-import { gql, useMutation } from '@apollo/client';
-import { Dashboard } from '@/types/dashboard';
+import { gql, useQuery } from "@apollo/client";
+import { Dashboard } from "@/types/dashboard";
 
-const GET_DASHBOARD_MUTATION = gql`
-	mutation GetDashboard($firebaseUid: String!) {
-		getDashboard(firebaseUid: $firebaseUid) {
-			id
-			name
-			createdAt
-		}
-	}
+const GET_DASHBOARD_QUERY = gql`
+  query GetDashboard($firebaseUid: String!, $dashboardId: ID!) {
+    getDashboard(firebaseUid: $firebaseUid, dashboardId: $dashboardId) {
+      id
+      userId
+      name
+      createdAt
+      updatedAt
+      publicUrl
+    }
+  }
 `;
 
 export interface GetDashboardInput {
-	firebaseUid: string;
+  firebaseUid: string;
+  dashboardId: string;
 }
 
 export interface GetDashboardData {
-	getDashboard: Dashboard;
+  getDashboard: Dashboard;
 }
 
-export function useGetDashboard() {
-	const [getDashboard, { data, loading, error }] = useMutation<
-		GetDashboardData,
-		GetDashboardInput
-	>(GET_DASHBOARD_MUTATION);
-
-	return {
-		getDashboard,
-		data,
-		loading,
-		error,
-	};
+export function useGetDashboard(firebaseUid: string, dashboardId: string) {
+  const { data, loading, error, refetch } = useQuery<
+    GetDashboardData,
+    GetDashboardInput
+  >(GET_DASHBOARD_QUERY, {
+    variables: { firebaseUid, dashboardId },
+    skip: !firebaseUid || !dashboardId,
+  });
+  return {
+    dashboard: data?.getDashboard ?? null,
+    loading,
+    error,
+    refetch,
+  };
 }
