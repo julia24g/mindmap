@@ -1,5 +1,9 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { Popover, PopoverTrigger } from "@radix-ui/react-popover";
+import SharePopup from "./SharePopup";
 
 type DashboardMeta = {
   id: string;
@@ -10,8 +14,10 @@ type DashboardMeta = {
 
 export function SiteHeader({
   dashboard,
+  onAddContent,
 }: {
   dashboard?: DashboardMeta | null;
+  onAddContent?: () => void;
 }) {
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "Unknown";
@@ -57,6 +63,26 @@ export function SiteHeader({
             <span title={lastEditedFull}>{lastEditedShort}</span>
           </div>
         </div>
+      </div>
+      <div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost">Share</Button>
+          </PopoverTrigger>
+          <SharePopup />
+        </Popover>
+      </div>
+      <div>
+        <Button
+          data-icon="inline-end"
+          onClick={() => {
+            if (onAddContent) {
+              onAddContent();
+            }
+          }}
+        >
+          Add Content <Plus />
+        </Button>
       </div>
     </header>
   );

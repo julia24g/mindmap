@@ -1,10 +1,11 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { toReactFlowFormat } from "@/util/graphTransform";
 import { useGetGraph } from "@/api/getGraph";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { NetworkIcon } from "lucide-react";
 import Layout from "@/components/graph/Layout";
-// import SplitView from "@/components/SplitView";
+import ContentSidePanel from "@/components/content-panel/ContentSidePanel";
 import {
   Empty,
   EmptyDescription,
@@ -28,7 +29,18 @@ export default function Dashboard() {
   const [selectedContentId, setSelectedContentId] = useState<string | null>(
     null,
   );
-  const [isSplitViewOpen, setIsSplitViewOpen] = useState(false);
+  const { isSplitViewOpen, setIsSplitViewOpen, addContentTrigger } =
+    useOutletContext<{
+      isSplitViewOpen: boolean;
+      setIsSplitViewOpen: (open: boolean) => void;
+      addContentTrigger: number;
+    }>();
+
+  useEffect(() => {
+    if (isSplitViewOpen) {
+      setSelectedContentId(null);
+    }
+  }, [addContentTrigger]);
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     if (!graph) {
@@ -37,14 +49,13 @@ export default function Dashboard() {
     return toReactFlowFormat(graph);
   }, [graph]);
 
-  const handleNodeClick = useCallback((contentId: string) => {
-    console.log("Node clicked:", contentId);
-    console.log("Setting selectedContentId to:", contentId);
-    console.log("Setting isSplitViewOpen to: true");
-    setSelectedContentId(contentId);
-    setIsSplitViewOpen(true);
-    console.log("After setState calls");
-  }, []);
+  const handleNodeClick = useCallback(
+    (contentId: string) => {
+      setSelectedContentId(contentId);
+      setIsSplitViewOpen(true);
+    },
+    [setIsSplitViewOpen],
+  );
 
   const handleCloseSplitView = () => {
     setIsSplitViewOpen(false);
@@ -53,7 +64,7 @@ export default function Dashboard() {
   const hasNoData = initialNodes.length === 0 && initialEdges.length === 0;
 
   return (
-    <div className="flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
+    <div className="relative flex-1 w-full flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
       {hasNoData ? (
         <div className="flex-1">
           <Empty>
@@ -70,24 +81,22 @@ export default function Dashboard() {
           </Empty>
         </div>
       ) : (
-        +(
-          <div className="flex flex-1 min-h-0 min-w-0">
-            <div className="flex-1 min-w-0">
-              <Layout
-                initialNodes={initialNodes}
-                initialEdges={initialEdges}
-                onNodeClick={handleNodeClick}
-              />
-            </div>
-            {/* {isSplitViewOpen && (
-            <SplitView
-              contentId={selectedContentId}
-              onClose={handleCloseSplitView}
+        <div className="flex flex-1 min-h-0 min-w-0">
+          <div className="flex-1 min-w-0">
+            <Layout
+              initialNodes={initialNodes}
+              initialEdges={initialEdges}
+              onNodeClick={handleNodeClick}
             />
-          )} */}
           </div>
-        )
+        </div>
       )}
+      <ContentSidePanel
+        open={isSplitViewOpen}
+        contentId={selectedContentId}
+        onClose={handleCloseSplitView}
+        mode={selectedContentId ? "view" : "create"}
+      />
     </div>
   );
 }
