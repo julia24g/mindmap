@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Popover, PopoverTrigger } from "@radix-ui/react-popover";
 import SharePopup from "./SharePopup";
+import { formatDate, formatFullDate } from "@/util/dateFormat";
 
 type DashboardMeta = {
   id: string;
@@ -19,21 +20,7 @@ export function SiteHeader({
   dashboard?: DashboardMeta | null;
   onAddContent?: () => void;
 }) {
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "Unknown";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const formatFullDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "Unknown";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  // ...existing code...
 
   const lastEditedShort = dashboard?.updatedAt
     ? formatDate(dashboard.updatedAt)

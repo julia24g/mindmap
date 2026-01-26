@@ -110,3 +110,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* remove default padding from BlockNote editor */
+.bn-editor {
+  padding: 0 !important;
+}
+

@@ -21,21 +21,23 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { NavLink } from "react-router-dom";
-import { ChevronRight, FolderPlus, Brain, Map } from "lucide-react";
+import { useState } from "react";
+import { CreateDashboardDialog } from "@/components/dashboard/CreateDashboardDialog";
+import { ChevronRight, FolderPlus, Brain } from "lucide-react";
 
 export default function AppSidebar({
   variant = "inset",
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const { currentUser } = useAuthContext();
-  const { dashboards, loading, error } = useGetDashboards(
-    currentUser?.uid ?? "",
-  );
+  const { dashboards, refetch } = useGetDashboards(currentUser?.uid ?? "");
 
   const items = dashboards.map((dashboard) => ({
     title: dashboard.name,
     url: `/dashboard/${dashboard.id}`,
   }));
+
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
     <Sidebar variant={variant} className="w-65" {...props}>
@@ -80,14 +82,12 @@ export default function AppSidebar({
                 <SidebarMenu>
                   {/* New Dashboard action */}
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to="/dashboard/new"
-                        className="flex items-center gap-2"
-                      >
-                        <FolderPlus className="h-4 w-4" />
-                        New Dashboard
-                      </NavLink>
+                    <SidebarMenuButton
+                      onClick={() => setDialogOpen(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                      New Dashboard
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   {items.map((item) => (
@@ -96,7 +96,7 @@ export default function AppSidebar({
                         <NavLink
                           to={item.url}
                           className={({ isActive }) =>
-                            isActive ? "font-medium" : undefined
+                            isActive ? "font-medium" : ""
                           }
                         >
                           {item.title}
@@ -111,6 +111,12 @@ export default function AppSidebar({
         </Collapsible>
       </SidebarContent>
       <SidebarRail />
+      <CreateDashboardDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        showTrigger={false}
+        refetchDashboards={refetch}
+      />
     </Sidebar>
   );
 }

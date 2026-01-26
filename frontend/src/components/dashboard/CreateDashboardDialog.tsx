@@ -2,7 +2,6 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -11,15 +10,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useCreateDashboard } from "@/api/createDashboard";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (dashboardId: string) => void;
   showTrigger?: boolean;
+  refetchDashboards?: () => void;
 };
 
 export function CreateDashboardDialog({
@@ -27,7 +27,9 @@ export function CreateDashboardDialog({
   onOpenChange,
   onCreated,
   showTrigger = true,
+  refetchDashboards,
 }: Props) {
+  const navigate = useNavigate();
   const { currentUser } = useAuthContext();
   const { createDashboard } = useCreateDashboard();
   const nameRef = useRef<HTMLInputElement>(null);
@@ -47,7 +49,11 @@ export function CreateDashboardDialog({
         variables: { firebaseUid: currentUser.uid, name },
       });
       const newId = result.data?.createDashboard?.id;
-      if (newId && onCreated) onCreated(String(newId));
+      if (refetchDashboards) await refetchDashboards();
+      if (newId) {
+        navigate(`/dashboard/${newId}`);
+        if (onCreated) onCreated(String(newId));
+      }
     } catch (err) {}
     onOpenChange(false);
   };
@@ -59,36 +65,26 @@ export function CreateDashboardDialog({
           <Button variant="outline">Create Dashboard</Button>
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-106.25">
+      <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Create Dashboard</DialogTitle>
-            <DialogDescription>
-              Create a new dashboard by giving it a name.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4">
-            <div className="grid gap-3">
-              <Label htmlFor="name-1">Name</Label>
-              <Input
-                id="name-1"
-                name="name"
-                defaultValue="My New Dashboard"
-                ref={nameRef}
-                autoFocus
-              />
-            </div>
+          <div className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Create a new dashboard</DialogTitle>
+              <DialogDescription>
+                Create a new dashboard by giving it a name.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              id="name-1"
+              name="name"
+              defaultValue="My New Dashboard"
+              ref={nameRef}
+              autoFocus
+            />
+            <DialogFooter>
+              <Button type="submit">Create</Button>
+            </DialogFooter>
           </div>
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button type="submit">Create</Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
