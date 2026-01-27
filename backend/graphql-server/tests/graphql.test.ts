@@ -234,7 +234,8 @@ describe("GraphQL Resolvers", () => {
       userId: "1",
       type: null,
       createdAt: new Date(),
-      notes: null,
+      notesText: null,
+      notesJSON: null,
     });
     // Fourth call: Update dashboard's updatedAt timestamp
     mockPrisma.dashboard.update.mockResolvedValueOnce({
@@ -563,7 +564,8 @@ describe("GraphQL Resolvers", () => {
         title: "Original Title",
         type: "article",
         createdAt: new Date(),
-        notes: "Original description",
+        notesText: "Original description",
+        notesJSON: null,
       };
 
       const updatedContent = {
@@ -589,7 +591,7 @@ describe("GraphQL Resolvers", () => {
       const res = await server.executeOperation({
         query: `mutation($id: ID!, $title: String) { 
           updateContent(id: $id, title: $title) { 
-            id title type notes 
+            id title type notesText notesJSON
           } 
         }`,
         variables: {
@@ -619,7 +621,8 @@ describe("GraphQL Resolvers", () => {
         title: "Test Content",
         type: "article",
         createdAt: new Date(),
-        notes: "Original description",
+        notesText: "Original description",
+        notesJSON: null,
       };
 
       const updatedContent = {
@@ -629,7 +632,8 @@ describe("GraphQL Resolvers", () => {
         title: "Test Content",
         type: "tutorial",
         createdAt: new Date(),
-        notes: "Updated description",
+        notesText: "Updated description",
+        notesJSON: null,
       };
 
       // Mock content exists
@@ -648,15 +652,16 @@ describe("GraphQL Resolvers", () => {
       });
 
       const res = await server.executeOperation({
-        query: `mutation($id: ID!, $type: String, $notes: String) { 
-          updateContent(id: $id, type: $type, notes: $notes) { 
-            id title type notes 
+        query: `mutation($id: ID!, $type: String, $notesText: String, $notesJSON: JSON) { 
+          updateContent(id: $id, type: $type, notesText: $notesText, notesJSON: $notesJSON) { 
+            id title type notesText notesJSON
           } 
         }`,
         variables: {
           id: "content-1",
           type: "tutorial",
-          notes: "Updated description",
+          notesText: "Updated description",
+          notesJSON: null,
         },
       });
 
@@ -665,7 +670,8 @@ describe("GraphQL Resolvers", () => {
         id: "content-1",
         title: "Test Content",
         type: "tutorial",
-        notes: "Updated description",
+        notesText: "Updated description",
+        notesJSON: null,
       });
       // Verify that dashboard.update was called to update the updatedAt timestamp
       expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({
@@ -682,7 +688,8 @@ describe("GraphQL Resolvers", () => {
         title: "Test Content",
         type: "article",
         createdAt: new Date(),
-        notes: "Test description",
+        notesText: "Test description",
+        notesJSON: null,
       };
 
       // Mock content exists
@@ -703,7 +710,7 @@ describe("GraphQL Resolvers", () => {
       const res = await server.executeOperation({
         query: `mutation($id: ID!) { 
           updateContent(id: $id) { 
-            id title type notes 
+            id title type notesText notesJSON
           } 
         }`,
         variables: {
@@ -716,7 +723,8 @@ describe("GraphQL Resolvers", () => {
         id: "content-1",
         title: "Test Content",
         type: "article",
-        notes: "Test description",
+        notesText: "Test description",
+        notesJSON: null,
       });
       // Verify that dashboard.update was called to update the updatedAt timestamp
       expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({

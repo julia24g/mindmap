@@ -4,5 +4,6 @@ export interface Content {
   title: string;
   type?: string;
   created_at: string;
-  notes?: string;
+  notesText?: string;
+  notesJSON?: any;
 }

@@ -38,19 +38,51 @@ export default function ContentSidePanel({
   });
   const titleRef = useRef<HTMLHeadingElement>(null);
   const editor = useCreateBlockNote();
+
   const { currentUser } = useAuthContext();
   const { dashboardId } = useParams<{ dashboardId: string }>();
   const { addContent, loading: addLoading } = useAddContent(
     currentUser?.uid ?? "",
     dashboardId ?? "",
   );
-
-  const [isVisible, setIsVisible] = useState(false);
-
   const { content, loading, error } = useGetContent(
     mode === "create" ? "" : contentId || "",
     currentUser?.uid || "",
   );
+
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // When switching content (or opening), always reset the editor doc.
+    if (!open) return;
+
+    // In create mode: start empty
+    if (mode === "create") {
+      editor.replaceBlocks(editor.document, []);
+      return;
+    }
+
+    // In view mode: if no content loaded yet, clear so you don't see stale notes
+    if (!content) {
+      editor.replaceBlocks(editor.document, []);
+      return;
+    }
+
+    // If the selected content has no notes, clear
+    if (!content.notesJSON) {
+      editor.replaceBlocks(editor.document, []);
+      return;
+    }
+
+    // Otherwise parse and load
+    try {
+      const blocks = JSON.parse(content.notesJSON);
+      editor.replaceBlocks(editor.document, blocks);
+    } catch (e) {
+      console.error("Invalid notesJSON:", e);
+      editor.replaceBlocks(editor.document, []);
+    }
+  }, [open, mode, content?.id, content?.notesJSON, editor]);
 
   useEffect(() => {
     if (open) {
@@ -76,9 +108,8 @@ export default function ContentSidePanel({
   };
 
   const onSubmit: SubmitHandler<IFormInput> = async (data) => {
-    const notes = editor.document;
     const currentTitle = data.title?.trim();
-    const transformedNotes = blockNoteTransform(notes);
+    const transformedNotes = blockNoteTransform(editor.document);
     if (!currentUser?.uid || !currentTitle) return;
     await addContent({
       variables: {
@@ -86,7 +117,8 @@ export default function ContentSidePanel({
         dashboardId: dashboardId || "",
         title: currentTitle,
         type: data.type,
-        notes: transformedNotes,
+        notesText: transformedNotes,
+        notesJSON: JSON.stringify(editor.document),
       },
     });
     onClose();

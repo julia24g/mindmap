@@ -2,20 +2,20 @@ import { gql, useQuery } from "@apollo/client";
 import { Content } from "@/types";
 
 const GET_CONTENT = gql`
-  query GetContent($contentId: ID!, $firebaseUid: String!) {
-    getContent(contentId: $contentId, firebaseUid: $firebaseUid) {
-      contentId
+  query GetContent($id: ID!, $firebaseUid: String!) {
+    getContent(id: $id, firebaseUid: $firebaseUid) {
       id
       title
       type
-      created_at
-      notes
+      createdAt
+      notesText
+      notesJSON
     }
   }
 `;
 
 export interface GetContentInput {
-  contentId: string;
+  id: string;
   firebaseUid: string;
 }
 
@@ -23,16 +23,16 @@ export interface GetContentData {
   getContent: Content;
 }
 
-export function useGetContent(contentId: string, firebaseUid: string) {
+export function useGetContent(id: string, firebaseUid: string) {
   const { data, loading, error, refetch } = useQuery<
     GetContentData,
     GetContentInput
   >(GET_CONTENT, {
     variables: {
-      contentId,
+      id,
       firebaseUid,
     },
-    skip: !contentId || !firebaseUid,
+    skip: !id || !firebaseUid,
   });
 
   return {

@@ -8,14 +8,16 @@ const ADD_CONTENT = gql`
     $dashboardId: ID!
     $title: String!
     $type: String
-    $notes: String
+    $notesText: String
+    $notesJSON: JSON
   ) {
     addContent(
       firebaseUid: $firebaseUid
       dashboardId: $dashboardId
       title: $title
       type: $type
-      notes: $notes
+      notesText: $notesText
+      notesJSON: $notesJSON
     ) {
       id
       dashboardId
@@ -23,7 +25,8 @@ const ADD_CONTENT = gql`
       type
       createdAt
       updatedAt
-      notes
+      notesText
+      notesJSON
     }
   }
 `;
@@ -33,7 +36,8 @@ export interface AddContentInput {
   dashboardId: string;
   title: string;
   type?: string;
-  notes?: string;
+  notesText?: string;
+  notesJSON?: any;
 }
 
 export interface AddContentData {
