@@ -1,45 +1,61 @@
 import { gql, useMutation } from "@apollo/client";
 import { Content } from "@/types";
+import { GET_GRAPH } from "@/api/getGraph";
 
 const ADD_CONTENT = gql`
   mutation AddContent(
     $firebaseUid: String!
+    $dashboardId: ID!
     $title: String!
     $type: String
-    $properties: JSON
+    $notes: String
   ) {
     addContent(
       firebaseUid: $firebaseUid
+      dashboardId: $dashboardId
       title: $title
       type: $type
-      properties: $properties
+      notes: $notes
     ) {
-      contentId
       id
+      dashboardId
       title
       type
-      created_at
-      properties
+      createdAt
+      updatedAt
+      notes
     }
   }
 `;
 
 export interface AddContentInput {
   firebaseUid: string;
+  dashboardId: string;
   title: string;
   type?: string;
-  properties?: Record<string, any>;
+  notes?: string;
 }
 
 export interface AddContentData {
   addContent: Content;
 }
 
-export function useAddContent() {
+export function useAddContent(firebaseUid: string, dashboardId: string) {
   const [addContent, { data, loading, error }] = useMutation<
     AddContentData,
     AddContentInput
-  >(ADD_CONTENT);
+  >(ADD_CONTENT, {
+    refetchQueries:
+      firebaseUid && dashboardId
+        ? [
+            {
+              query: GET_GRAPH,
+              variables: { firebaseUid, dashboardId },
+            },
+          ]
+        : [],
+    awaitRefetchQueries: true,
+  });
 
   return {
     addContent,

@@ -15,12 +15,13 @@ export default function DashboardLayout() {
   );
 
   const [isSplitViewOpen, setIsSplitViewOpen] = useState(false);
+  const [selectedContentId, setSelectedContentId] = useState<string | null>(
+    null,
+  );
 
-  // Handler to notify Dashboard to reset selectedContentId
-  const [addContentTrigger, setAddContentTrigger] = useState(0);
   const handleAddContent = () => {
     setIsSplitViewOpen(true);
-    setAddContentTrigger((prev) => prev + 1); // increment to trigger effect in Dashboard
+    setSelectedContentId(null);
   };
 
   return (
@@ -33,7 +34,12 @@ export default function DashboardLayout() {
         />
         <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
           <Outlet
-            context={{ isSplitViewOpen, setIsSplitViewOpen, addContentTrigger }}
+            context={{
+              isSplitViewOpen,
+              setIsSplitViewOpen,
+              selectedContentId,
+              setSelectedContentId,
+            }}
           />
         </div>
       </SidebarInset>

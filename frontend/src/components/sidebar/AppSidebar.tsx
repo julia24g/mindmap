@@ -87,7 +87,7 @@ export default function AppSidebar({
                       className="flex items-center gap-2"
                     >
                       <FolderPlus className="h-4 w-4" />
-                      New Dashboard
+                      New dashboard
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   {items.map((item) => (

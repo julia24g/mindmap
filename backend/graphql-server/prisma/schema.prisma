@@ -42,5 +42,5 @@ model Content {
   type        String?   @db.Text
   createdAt   DateTime  @default(now()) @db.Timestamptz
   updatedAt   DateTime? @updatedAt @db.Timestamptz
-  properties  Json?
+  notes       String?
 }

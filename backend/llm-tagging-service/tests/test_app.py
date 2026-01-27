@@ -8,7 +8,7 @@ client = TestClient(app)
 # Test data
 sample_event = TagInput(
     title="Machine Learning Conference 2024",
-    description="A conference about the latest developments in AI and machine learning"
+    notes="A conference about the latest developments in AI and machine learning"
 )
 
 sample_existing_tags = ["machine-learning", "ai", "conference", "technology", "data-science"]
@@ -18,31 +18,31 @@ class TestTagInput:
     
     def test_valid_tag_input(self):
         """Test that valid TagInput is accepted"""
-        event = TagInput(title="Test Title", description="Test Description")
+        event = TagInput(title="Test Title", notes="Test Notes")
         assert event.title == "Test Title"
-        assert event.description == "Test Description"
+        assert event.notes == "Test Notes"
     
     def test_empty_title(self):
         """Test that empty title raises validation error"""
         with pytest.raises(ValueError):
-            TagInput(title="", description="Test Description")
+            TagInput(title="", notes="Test Notes")
     
-    def test_empty_description(self):
-        """Test that empty description is allowed"""
-        event = TagInput(title="Test Title", description="")
+    def test_empty_notes(self):
+        """Test that empty notes is allowed"""
+        event = TagInput(title="Test Title", notes="")
         assert event.title == "Test Title"
-        assert event.description == ""
+        assert event.notes == ""
     
-    def test_missing_description(self):
-        """Test that missing description uses default empty string"""
-        event = TagInput(title="Test Title")  # Missing description field
+    def test_missing_notes(self):
+        """Test that missing notes uses default empty string"""
+        event = TagInput(title="Test Title")  # Missing notes field
         assert event.title == "Test Title"
-        assert event.description == ""  # Should use default value
+        assert event.notes == ""  # Should use default value
     
     def test_missing_title(self):
         """Test that missing title raises validation error"""
         with pytest.raises(ValueError):
-            TagInput(description="Test Description")  # Missing title field
+            TagInput(notes="Test Notes")  # Missing title field
 
 class TestFetchTagsFromGraphQL:
     """Test the GraphQL tag fetching functionality"""
@@ -134,17 +134,17 @@ class TestSuggestTagsEndpoint:
     
     @patch('main.fetch_tags_from_graphql')
     @patch('main.suggest_tags')
-    def test_suggest_tags_endpoint_empty_description(self, mock_suggest_tags, mock_fetch_tags):
-        """Test API call with empty description"""
+    def test_suggest_tags_endpoint_empty_notes(self, mock_suggest_tags, mock_fetch_tags):
+        """Test API call with empty notes"""
         mock_fetch_tags.return_value = sample_existing_tags
         mock_suggest_tags.return_value = ["machine-learning"]
         
-        event_with_empty_desc = TagInput(
+        event_with_empty_notes = TagInput(
             title="Machine Learning Conference 2024",
-            description=""
+            notes=""
         )
         
-        response = client.post("/suggest-tags", json=event_with_empty_desc.model_dump())
+        response = client.post("/suggest-tags", json=event_with_empty_notes.model_dump())
         
         assert response.status_code == 200
         assert response.json() == {"suggested_tags": ["machine-learning"]}
@@ -173,7 +173,7 @@ class TestSuggestTagsEndpoint:
     
     def test_suggest_tags_endpoint_invalid_input(self):
         """Test API validation of input data"""
-        invalid_data = {"title": "", "description": "Test"}  # Invalid: empty title
+        invalid_data = {"title": "", "notes": "Test"}  # Invalid: empty title
         
         response = client.post("/suggest-tags", json=invalid_data)
         

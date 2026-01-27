@@ -18,10 +18,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const CONTENT_TYPES = [
-  { value: "thought", label: "Thought" },
-  { value: "media", label: "Media" },
-  { value: "event", label: "Event" },
-  { value: "concept", label: "Concept" },
+  { value: "thought", label: "Thought", emoji: "💭" },
+  { value: "media", label: "Media", emoji: "🎥" },
+  { value: "event", label: "Event", emoji: "📅" },
+  { value: "concept", label: "Concept", emoji: "🧠" },
 ] as const;
 
 type ContentTypeValue = (typeof CONTENT_TYPES)[number]["value"];
@@ -69,6 +69,9 @@ export function ContentTypeBadge({
                 !selected && "text-muted-foreground",
               )}
             >
+              {selected?.emoji && (
+                <span className="leading-none mr-1">{selected.emoji}</span>
+              )}
               {label}
               <ChevronsUpDown className="ml-1 h-3.5 w-3.5 opacity-60" />
             </Badge>

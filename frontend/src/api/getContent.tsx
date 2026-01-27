@@ -9,7 +9,7 @@ const GET_CONTENT = gql`
       title
       type
       created_at
-      properties
+      notes
     }
   }
 `;

@@ -50,7 +50,7 @@ graphql_client = Client(transport=transport, fetch_schema_from_transport=False)
 # Defines expected input structure
 class TagInput(BaseModel):
     title: str
-    description: Optional[str] = ""
+    notes: Optional[str] = ""
     
     @validator('title')
     def validate_title(cls, v):
@@ -108,8 +108,8 @@ def suggest_tags(text: str, existing_tags: List[str]) -> List[str]:
 @app.post("/suggest-tags")
 async def suggest_tags_endpoint(event: TagInput):
     try:
-        description = event.description or ""
-        context_text = f"{event.title}. {description}"
+        notes = event.notes or ""
+        context_text = f"{event.title}. {notes}"
         existing_tags = fetch_tags_from_graphql()
         suggestions = suggest_tags(context_text, existing_tags)
         return {"suggested_tags": suggestions}

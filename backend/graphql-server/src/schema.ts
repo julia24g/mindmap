@@ -8,7 +8,7 @@ export const typeDefs = `#graphql
         type: String
         createdAt: DateTime!
         updatedAt: DateTime
-        properties: JSON
+        notes: String
     }
     type User {
         id: ID!
@@ -71,13 +71,13 @@ export const typeDefs = `#graphql
             dashboardId: ID!
             title: String!
             type: String
-            properties: JSON
+            notes: String
         ): Content
         updateContent(
             id: ID!
             title: String
             type: String
-            properties: JSON
+            notes: String
         ): Content
         deleteContent(
             id: ID!

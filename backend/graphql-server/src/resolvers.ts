@@ -296,13 +296,13 @@ export const resolvers = {
         dashboardId,
         title,
         type,
-        properties,
+        notes,
       }: {
         firebaseUid: string;
         dashboardId: string;
         title: string;
         type: string;
-        properties: any;
+        notes: string;
       },
     ) {
       const userId = await getUserIdByFirebaseUid(firebaseUid);
@@ -321,7 +321,7 @@ export const resolvers = {
           dashboardId,
           title,
           type,
-          properties,
+          notes,
         },
       });
 
@@ -338,7 +338,7 @@ export const resolvers = {
       try {
         const llmRes = await axios.post("http://localhost:8000/suggest-tags", {
           title,
-          description: properties?.description || "",
+          notes: notes || "",
         });
         tags = llmRes.data.suggested_tags;
       } catch (e) {
@@ -388,8 +388,8 @@ export const resolvers = {
         id,
         title,
         type,
-        properties,
-      }: { id: string; title: string; type: string; properties: any },
+        notes,
+      }: { id: string; title: string; type: string; notes: string },
     ) {
       const content = await prisma.content.findUnique({
         where: { id },
@@ -404,7 +404,7 @@ export const resolvers = {
         data: {
           title,
           type,
-          properties,
+          notes,
         },
       });
 

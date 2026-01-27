@@ -4,5 +4,5 @@ export interface Content {
   title: string;
   type?: string;
   created_at: string;
-  properties?: Record<string, any>;
+  notes?: string;
 }

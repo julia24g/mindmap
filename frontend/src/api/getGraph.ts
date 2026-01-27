@@ -60,6 +60,5 @@ export function useGetGraph(firebaseUid: string, dashboardId: string) {
     graph: data?.getGraph,
     loading,
     error,
-    refetch,
   };
 }

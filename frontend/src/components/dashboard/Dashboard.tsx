@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { toReactFlowFormat } from "@/util/graphTransform";
 import { useGetGraph } from "@/api/getGraph";
@@ -21,26 +21,19 @@ export default function Dashboard() {
 
   const userId = currentUser?.uid ?? "";
 
-  const { graph, loading, error, refetch } = useGetGraph(
-    userId,
-    dashboardId ?? "",
-  );
+  const { graph, loading, error } = useGetGraph(userId, dashboardId ?? "");
 
-  const [selectedContentId, setSelectedContentId] = useState<string | null>(
-    null,
-  );
-  const { isSplitViewOpen, setIsSplitViewOpen, addContentTrigger } =
-    useOutletContext<{
-      isSplitViewOpen: boolean;
-      setIsSplitViewOpen: (open: boolean) => void;
-      addContentTrigger: number;
-    }>();
-
-  useEffect(() => {
-    if (isSplitViewOpen) {
-      setSelectedContentId(null);
-    }
-  }, [addContentTrigger]);
+  const {
+    isSplitViewOpen,
+    setIsSplitViewOpen,
+    selectedContentId,
+    setSelectedContentId,
+  } = useOutletContext<{
+    isSplitViewOpen: boolean;
+    setIsSplitViewOpen: (open: boolean) => void;
+    selectedContentId: string | null;
+    setSelectedContentId: (id: string | null) => void;
+  }>();
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     if (!graph) {
@@ -54,12 +47,8 @@ export default function Dashboard() {
       setSelectedContentId(contentId);
       setIsSplitViewOpen(true);
     },
-    [setIsSplitViewOpen],
+    [setSelectedContentId, setIsSplitViewOpen],
   );
-
-  const handleCloseSplitView = () => {
-    setIsSplitViewOpen(false);
-  };
 
   const hasNoData = initialNodes.length === 0 && initialEdges.length === 0;
 
@@ -94,7 +83,7 @@ export default function Dashboard() {
       <ContentSidePanel
         open={isSplitViewOpen}
         contentId={selectedContentId}
-        onClose={handleCloseSplitView}
+        onClose={() => setIsSplitViewOpen(false)}
         mode={selectedContentId ? "view" : "create"}
       />
     </div>
