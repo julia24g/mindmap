@@ -85,6 +85,7 @@ export default function AppSidebar({
                     <SidebarMenuButton
                       onClick={() => setDialogOpen(true)}
                       className="flex items-center gap-2"
+                      isActive={false}
                     >
                       <FolderPlus className="h-4 w-4" />
                       New dashboard
@@ -93,13 +94,12 @@ export default function AppSidebar({
                   {items.map((item) => (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild>
-                        <NavLink
-                          to={item.url}
-                          className={({ isActive }) =>
-                            isActive ? "font-medium" : ""
-                          }
-                        >
-                          {item.title}
+                        <NavLink to={item.url} end>
+                          {({ isActive }) => (
+                            <SidebarMenuButton asChild isActive={isActive}>
+                              <span>{item.title}</span>
+                            </SidebarMenuButton>
+                          )}
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
