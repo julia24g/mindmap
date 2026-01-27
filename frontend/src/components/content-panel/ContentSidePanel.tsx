@@ -1,158 +1,193 @@
-import { useGetContent } from "@/api/getContent";
-import { useForm, SubmitHandler } from "react-hook-form";
-import { useAuthContext } from "@/contexts/AuthContext";
-import { ChevronsRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useEffect, useRef, useState } from "react";
-import { useAddContent } from "@/api/addContent";
 import "@blocknote/core/fonts/inter.css";
-import { useCreateBlockNote } from "@blocknote/react";
 import "@blocknote/shadcn/style.css";
+
+import { useEffect, useRef, useState } from "react";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { useParams } from "react-router-dom";
+import { ChevronsRight } from "lucide-react";
+
+import { useCreateBlockNote } from "@blocknote/react";
+import { BlockNoteView } from "@blocknote/shadcn";
+
+import { useAuthContext } from "@/contexts/AuthContext";
+import { useGetContent } from "@/api/getContent";
+import { useAddContent } from "@/api/addContent";
+
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+
 import { ContentTypeBadge } from "./ContentTypeBadge";
 import { formatFullDate } from "../../util/dateFormat";
-import { Separator } from "@/components/ui/separator";
-import { BlockNoteView } from "@blocknote/shadcn";
-import { useParams } from "react-router-dom";
 import blockNoteTransform from "@/util/blockNoteTransform";
+import { loadEditorFromNotes } from "@/util/loadEditorFromNotes";
+
+type Mode = "view" | "create";
 
 interface ContentSidePanelProps {
   open: boolean;
   contentId: string | null;
   onClose: () => void;
-  mode?: "view" | "create";
+  mode?: Mode;
 }
+
+interface FormValues {
+  title: string;
+  type?: string;
+}
+
+const PANEL_CLASSES =
+  "fixed top-0 right-0 h-full w-full sm:w-120 z-30 shadow-sm bg-background flex flex-col transition-transform duration-300 ease-in-out";
 
 export default function ContentSidePanel({
   open,
   contentId,
   onClose,
-  mode,
+  mode = "view",
 }: ContentSidePanelProps) {
-  interface IFormInput {
-    title: string;
-    type?: string;
-  }
-
-  const { handleSubmit, setValue, reset, watch } = useForm<IFormInput>({
-    defaultValues: { title: "", type: undefined },
-  });
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const editor = useCreateBlockNote();
-
   const { currentUser } = useAuthContext();
   const { dashboardId } = useParams<{ dashboardId: string }>();
-  const { addContent, loading: addLoading } = useAddContent(
-    currentUser?.uid ?? "",
-    dashboardId ?? "",
-  );
-  const { content, loading, error } = useGetContent(
-    mode === "create" ? "" : contentId || "",
-    currentUser?.uid || "",
-  );
+
+  const editor = useCreateBlockNote();
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   const [isVisible, setIsVisible] = useState(false);
 
+  const {
+    handleSubmit,
+    setValue,
+    reset,
+    watch,
+    formState: { isDirty },
+  } = useForm<FormValues>({
+    defaultValues: { title: "", type: undefined },
+  });
+
+  const firebaseUid = currentUser?.uid ?? "";
+  const dashboardIdSafe = dashboardId ?? "";
+  const selectedContentId = mode === "create" ? "" : (contentId ?? "");
+
+  const { addContent, loading: addLoading } = useAddContent(
+    firebaseUid,
+    dashboardIdSafe,
+  );
+
+  const { content } = useGetContent(selectedContentId, firebaseUid);
+
+  const title = watch("title");
+  const type = watch("type");
+
+  // -----------------------------
+  // Effects
+  // -----------------------------
+
+  // Sync panel visibility + form values on open/mode/content change
   useEffect(() => {
-    // When switching content (or opening), always reset the editor doc.
+    if (!open) {
+      setIsVisible(false);
+      return;
+    }
+
+    setIsVisible(true);
+
+    if (mode === "create") {
+      reset({ title: "", type: undefined });
+      return;
+    }
+
+    // view mode
+    reset({
+      title: content?.title ?? "",
+      type: content?.type ?? undefined,
+    });
+  }, [open, mode, content?.id, reset, content?.title, content?.type]);
+
+  // Sync BlockNote document when opening / switching selected content
+  useEffect(() => {
     if (!open) return;
 
-    // In create mode: start empty
+    // Create mode: always start empty
     if (mode === "create") {
-      editor.replaceBlocks(editor.document, []);
+      loadEditorFromNotes(editor, null);
       return;
     }
 
-    // In view mode: if no content loaded yet, clear so you don't see stale notes
-    if (!content) {
-      editor.replaceBlocks(editor.document, []);
-      return;
-    }
-
-    // If the selected content has no notes, clear
-    if (!content.notesJSON) {
-      editor.replaceBlocks(editor.document, []);
-      return;
-    }
-
-    // Otherwise parse and load
-    try {
-      const blocks = JSON.parse(content.notesJSON);
-      editor.replaceBlocks(editor.document, blocks);
-    } catch (e) {
-      console.error("Invalid notesJSON:", e);
-      editor.replaceBlocks(editor.document, []);
-    }
+    loadEditorFromNotes(editor, content?.notesJSON);
   }, [open, mode, content?.id, content?.notesJSON, editor]);
 
-  useEffect(() => {
-    if (open) {
-      setIsVisible(true);
-      if (mode !== "create" && content) {
-        reset({ title: content.title || "", type: content.type });
-      } else {
-        reset({ title: "", type: undefined });
-      }
-    } else {
-      setIsVisible(false);
-    }
-  }, [open, content, mode]);
+  // -----------------------------
+  // Handlers
+  // -----------------------------
+
+  const closePanel = () => setIsVisible(false);
 
   const handleTransitionEnd = () => {
-    if (!isVisible && !open) {
-      onClose();
-    }
+    // Call parent close only after slide-out finishes (prevents snap)
+    if (!isVisible && !open) onClose();
   };
 
-  const handleClose = () => {
-    setIsVisible(false);
+  const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => {
+    setValue("title", e.currentTarget.innerText, { shouldDirty: true });
   };
 
-  const onSubmit: SubmitHandler<IFormInput> = async (data) => {
-    const currentTitle = data.title?.trim();
+  const onSubmit: SubmitHandler<FormValues> = async ({ title, type }) => {
+    const trimmedTitle = title?.trim();
+    if (!firebaseUid || !trimmedTitle) return;
+
     const transformedNotes = blockNoteTransform(editor.document);
-    if (!currentUser?.uid || !currentTitle) return;
+
     await addContent({
       variables: {
-        firebaseUid: currentUser.uid,
-        dashboardId: dashboardId || "",
-        title: currentTitle,
-        type: data.type,
+        firebaseUid,
+        dashboardId: dashboardIdSafe,
+        title: trimmedTitle,
+        type,
         notesText: transformedNotes,
         notesJSON: JSON.stringify(editor.document),
       },
     });
+
     onClose();
   };
 
+  // -----------------------------
+  // Derived UI
+  // -----------------------------
+
+  const createdAtISO = content?.created_at ?? new Date().toISOString(); // create mode fallback
+
   return (
     <div
-      className={`fixed top-0 right-0 h-full w-full sm:w-120 z-30 shadow-sm bg-background flex flex-col transition-transform duration-300 ease-in-out ${
+      className={`${PANEL_CLASSES} ${
         isVisible ? "translate-x-0" : "translate-x-full"
       }`}
       style={{ maxWidth: "100vw" }}
       onTransitionEnd={handleTransitionEnd}
     >
       <form
-        className="flex flex-col h-full"
+        className="flex h-full flex-col"
         autoComplete="off"
         onSubmit={handleSubmit(onSubmit)}
       >
-        <div className="h-12 px-4 flex items-center justify-between">
+        {/* Header */}
+        <div className="flex h-12 items-center justify-between px-4">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={handleClose}
+            onClick={closePanel}
             className="h-8 w-8"
             aria-label="Close panel"
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>
+
           <Button type="submit" size="sm" disabled={addLoading}>
             {addLoading ? "Saving..." : "Save"}
           </Button>
         </div>
-        <div className="px-12 pt-8 pb-6">
+
+        {/* Title + Meta */}
+        <div className="px-12 pb-6 pt-8">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <h2
@@ -160,32 +195,30 @@ export default function ContentSidePanel({
                 contentEditable
                 suppressContentEditableWarning
                 className="
-                  text-3xl font-semibold
-                  outline-none
+                  text-3xl font-semibold outline-none
                   empty:before:content-['New_content']
                   empty:before:text-muted-foreground/30
                 "
-                onBlur={(e) => setValue("title", e.currentTarget.innerText)}
+                onBlur={handleTitleBlur}
               >
-                {watch("title")}
+                {title}
               </h2>
+
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>
-                  Created{" "}
-                  {content?.created_at
-                    ? formatFullDate(content.created_at)
-                    : formatFullDate(new Date().toISOString())}
-                </span>
+                <span>Created {formatFullDate(createdAtISO)}</span>
                 <span className="opacity-50">•</span>
                 <ContentTypeBadge
-                  value={watch("type")}
-                  onChange={(v) => setValue("type", v)}
+                  value={type}
+                  onChange={(v) => setValue("type", v, { shouldDirty: true })}
                 />
               </div>
             </div>
           </div>
         </div>
+
         <Separator />
+
+        {/* Editor */}
         <div className="flex-1 overflow-auto px-12 py-8">
           <BlockNoteView editor={editor} />
         </div>
