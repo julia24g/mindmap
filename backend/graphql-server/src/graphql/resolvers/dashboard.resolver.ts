@@ -23,5 +23,8 @@ export const dashboardResolvers = {
     publishDashboard: async (_: any, args: any, ctx: any) => {
       return await dashboardService.publishDashboard(args, ctx);
     },
+    unpublishDashboard: async (_: any, args: any, ctx: any) => {
+      return await dashboardService.unpublishDashboard(args, ctx);
+    },
   },
 };

@@ -704,4 +704,67 @@ describe("GraphQL Resolvers", () => {
       expect(mockPrisma.dashboard.create).not.toHaveBeenCalled();
     });
   });
+
+  // Mutation - publish/unpublish dashboard
+  describe("publish/unpublishDashboard", () => {
+    it("should publish a dashboard and generate a publicSlug when none exists", async () => {
+      // Dashboard exists and belongs to user (requireUser returns {id: '1'} by default)
+      mockPrisma.dashboard.findUnique.mockResolvedValueOnce({
+        id: "dashboard-1",
+        userId: "1",
+        publicSlug: null,
+        publishedAt: null,
+      });
+
+      // Mock update to return the dashboard with visibility PUBLIC and a publicSlug
+      mockPrisma.dashboard.update.mockResolvedValueOnce({
+        id: "dashboard-1",
+        userId: "1",
+        visibility: "PUBLIC",
+        publicSlug: "generated-slug",
+        publishedAt: new Date(),
+      });
+
+      const res = await server.executeOperation({
+        query: `mutation($dashboardId: ID!) { publishDashboard(dashboardId: $dashboardId) { id visibility publicSlug publishedAt } }`,
+        variables: { dashboardId: "dashboard-1" },
+      });
+
+      const data = (res as any).body.singleResult.data;
+      expect(data.publishDashboard).toBeDefined();
+      expect(data.publishDashboard.visibility).toBe("PUBLIC");
+      expect(data.publishDashboard.publicSlug).toBe("generated-slug");
+      expect(mockPrisma.dashboard.update).toHaveBeenCalled();
+    });
+
+    it("should unpublish a dashboard and set visibility to PRIVATE", async () => {
+      // Dashboard exists and belongs to user
+      mockPrisma.dashboard.findUnique.mockResolvedValueOnce({
+        id: "dashboard-1",
+        userId: "1",
+        visibility: "PUBLIC",
+        publicSlug: "existing-slug",
+      });
+
+      mockPrisma.dashboard.update.mockResolvedValueOnce({
+        id: "dashboard-1",
+        userId: "1",
+        visibility: "PRIVATE",
+        publicSlug: null,
+      });
+
+      const res = await server.executeOperation({
+        query: `mutation($dashboardId: ID!) { unpublishDashboard(dashboardId: $dashboardId) { id visibility publicSlug } }`,
+        variables: { dashboardId: "dashboard-1" },
+      });
+
+      const data = (res as any).body.singleResult.data;
+      expect(data.unpublishDashboard).toBeDefined();
+      expect(data.unpublishDashboard.visibility).toBe("PRIVATE");
+      expect(mockPrisma.dashboard.update).toHaveBeenCalledWith({
+        where: { id: "dashboard-1" },
+        data: { visibility: expect.any(String) },
+      });
+    });
+  });
 });

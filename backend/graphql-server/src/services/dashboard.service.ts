@@ -2,6 +2,7 @@ import { GraphQLError } from "graphql";
 import { prisma } from "../lib/prisma";
 import { requireUser } from "../auth";
 import { makePublicSlug } from "../util/publicSlug";
+import { DashboardVisibility } from "@prisma/client";
 
 export const dashboardService = {
   async getDashboard({ dashboardId }: { dashboardId: string }, ctx: any) {
@@ -20,7 +21,7 @@ export const dashboardService = {
 
   async getPublicDashboard({ publicSlug }: { publicSlug: string }) {
     const dashboard = await prisma.dashboard.findUnique({
-      where: { publicSlug: publicSlug, visibility: "PUBLIC" } as any,
+      where: { publicSlug: publicSlug, visibility: DashboardVisibility.PUBLIC },
     });
     if (!dashboard) {
       throw new GraphQLError("Dashboard not found");
@@ -69,11 +70,13 @@ export const dashboardService = {
     }
 
     if (dashboard.publicSlug) {
-      const updated = await prisma.dashboard.update({
+      return prisma.dashboard.update({
         where: { id: dashboardId },
-        data: { visibility: "PUBLIC", publishedAt: new Date() },
+        data: {
+          visibility: DashboardVisibility.PUBLIC,
+          publishedAt: dashboard.publishedAt ?? new Date(),
+        },
       });
-      return updated;
     }
 
     let lastErr: any = null;
@@ -84,7 +87,7 @@ export const dashboardService = {
           where: { id: dashboardId },
           data: {
             publicSlug: slug,
-            visibility: "PUBLIC",
+            visibility: DashboardVisibility.PUBLIC,
             publishedAt: new Date(),
           },
         });
@@ -100,5 +103,28 @@ export const dashboardService = {
 
     console.error("Failed to generate unique publicSlug", lastErr);
     throw new GraphQLError("Failed to generate unique public slug");
+  },
+
+  async unpublishDashboard({ dashboardId }: { dashboardId: string }, ctx: any) {
+    const user = requireUser(ctx);
+
+    const dashboard = await prisma.dashboard.findUnique({
+      where: { id: dashboardId },
+    });
+
+    if (!dashboard) {
+      throw new GraphQLError("Dashboard not found");
+    }
+
+    if (dashboard.userId !== user.id) {
+      throw new GraphQLError("Unauthorized access to dashboard");
+    }
+
+    return prisma.dashboard.update({
+      where: { id: dashboardId },
+      data: {
+        visibility: DashboardVisibility.PRIVATE,
+      },
+    });
   },
 };

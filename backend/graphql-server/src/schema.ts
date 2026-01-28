@@ -95,6 +95,9 @@ export const typeDefs = `#graphql
                 publishDashboard(
                     dashboardId: ID!
                 ): Dashboard
+                unpublishDashboard(
+                    dashboardId: ID!
+                ): Dashboard
         createUser(
             idToken: String!
             firstName: String!
