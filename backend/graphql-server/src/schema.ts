@@ -18,15 +18,17 @@ export const typeDefs = `#graphql
         email: String!
         firebaseUid: String!
         createdAt: DateTime!
-        updatedAt: DateTime
+        updatedAt: DateTime!
     }
     type Dashboard {
         id: ID!
         userId: ID!
         name: String!
         createdAt: DateTime!
-        updatedAt: DateTime
-        publicUrl: String
+        updatedAt: DateTime!
+        visibility: String!
+        publishedAt: DateTime
+        publicSlug: String
     }
     type Tag {
         name: String!
@@ -65,6 +67,8 @@ export const typeDefs = `#graphql
         getContentByTag(userId: ID!, tagName: String!): [Content!]!
         getUser(id: ID!): User
         getUserByEmail(email: String!): User
+        getPublicDashboard(publicSlug: String!): Dashboard
+        getPublicGraph(dashboardId: ID!): UserGraph
     }
     type Mutation {
         addContent(

@@ -28,11 +28,13 @@ export default function Dashboard() {
     setIsSplitViewOpen,
     selectedContentId,
     setSelectedContentId,
+    isOwner,
   } = useOutletContext<{
     isSplitViewOpen: boolean;
     setIsSplitViewOpen: (open: boolean) => void;
     selectedContentId: string | null;
     setSelectedContentId: (id: string | null) => void;
+    isOwner?: boolean;
   }>();
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
@@ -76,6 +78,7 @@ export default function Dashboard() {
               initialNodes={initialNodes}
               initialEdges={initialEdges}
               onNodeClick={handleNodeClick}
+              isOwner={!!isOwner}
             />
           </div>
         </div>

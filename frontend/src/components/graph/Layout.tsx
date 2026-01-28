@@ -22,7 +22,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import collide from "@/util/collision";
-import ContentNode from "@/components/nodetypes/ContentNode";
+import ContentNode from "@/components/nodetypes/PrivateContentNode";
+import PublicContentNode from "@/components/nodetypes/PublicContentNode";
 import { Spinner } from "@/components/ui/spinner";
 import { Item, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
 import TagNode from "../nodetypes/TagNode";
@@ -34,11 +35,6 @@ const simulation = forceSimulation()
   .force("collide", collide())
   .alphaTarget(0.05)
   .stop();
-
-const nodeTypes = {
-  contentNode: ContentNode,
-  tagNode: TagNode,
-};
 
 const useLayoutedElements = (onComplete?: () => void) => {
   const { getNodes, setNodes, getEdges, fitView } = useReactFlow();
@@ -115,10 +111,12 @@ const LayoutFlow = ({
   initialNodes,
   initialEdges,
   onNodeClick,
+  isOwner,
 }: {
   initialNodes: Node[];
   initialEdges: Edge[];
-  onNodeClick: (contentId: string) => void;
+  onNodeClick?: (contentId: string) => void;
+  isOwner: boolean;
 }) => {
   console.log(
     "LayoutFlow render - initialNodes:",
@@ -143,12 +141,15 @@ const LayoutFlow = ({
       ...node,
       data: {
         ...node.data,
-        ...(node.type === "contentNode" && { onNodeClick: onNodeClick }),
+        // Attach onNodeClick only for content nodes when the current user is the owner
+        ...(isOwner && onNodeClick && node.type === "contentNode"
+          ? { onNodeClick }
+          : {}),
       },
     }));
     setNodes(nodesWithClickHandler);
     setEdges(initialEdges);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+  }, [initialNodes, initialEdges, setNodes, setEdges, isOwner, onNodeClick]);
 
   useLayoutedElements(() => setIsLoading(false));
 
@@ -174,7 +175,10 @@ const LayoutFlow = ({
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
+        nodeTypes={{
+          contentNode: isOwner ? ContentNode : PublicContentNode,
+          tagNode: TagNode,
+        }}
         fitView
         nodesDraggable={false}
         nodesConnectable={false}
@@ -192,10 +196,12 @@ export default function Layout({
   initialNodes,
   initialEdges,
   onNodeClick,
+  isOwner,
 }: {
   initialNodes: Node[];
   initialEdges: Edge[];
-  onNodeClick: (contentId: string) => void;
+  onNodeClick?: (contentId: string) => void;
+  isOwner: boolean;
 }) {
   return (
     <div className="w-full h-full min-w-0 min-h-0 overflow-hidden">
@@ -204,6 +210,7 @@ export default function Layout({
           initialNodes={initialNodes}
           initialEdges={initialEdges}
           onNodeClick={onNodeClick}
+          isOwner={isOwner}
         />
       </ReactFlowProvider>
     </div>

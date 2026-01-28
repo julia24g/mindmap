@@ -14,6 +14,12 @@ export default function DashboardLayout() {
     dashboardId ?? "",
   );
 
+  const isOwner = !!(
+    currentUser &&
+    dashboard &&
+    currentUser.uid === dashboard.userId
+  );
+
   const [isSplitViewOpen, setIsSplitViewOpen] = useState(false);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(
     null,
@@ -31,6 +37,7 @@ export default function DashboardLayout() {
         <SiteHeader
           dashboard={loading ? null : dashboard}
           onAddContent={handleAddContent}
+          isOwner={isOwner}
         />
         <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
           <Outlet
@@ -39,6 +46,7 @@ export default function DashboardLayout() {
               setIsSplitViewOpen,
               selectedContentId,
               setSelectedContentId,
+              isOwner,
             }}
           />
         </div>

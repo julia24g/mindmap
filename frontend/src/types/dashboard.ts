@@ -3,6 +3,8 @@ export interface Dashboard {
   userId: string;
   name: string;
   createdAt: string;
-  updatedAt?: string;
-  publicUrl?: string;
+  updatedAt: string;
+  visibility: string;
+  publishedAt?: string | null;
+  publicSlug?: string | null;
 }

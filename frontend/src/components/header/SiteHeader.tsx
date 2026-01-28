@@ -1,7 +1,8 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Lock } from "lucide-react";
 import { Popover, PopoverTrigger } from "@radix-ui/react-popover";
 import SharePopup from "./SharePopup";
 import { formatDate, formatFullDate } from "@/util/dateFormat";
@@ -16,12 +17,12 @@ type DashboardMeta = {
 export function SiteHeader({
   dashboard,
   onAddContent,
+  isOwner,
 }: {
   dashboard?: DashboardMeta | null;
   onAddContent?: () => void;
+  isOwner?: boolean;
 }) {
-  // ...existing code...
-
   const lastEditedShort = dashboard?.updatedAt
     ? formatDate(dashboard.updatedAt)
     : "Unknown";
@@ -51,26 +52,38 @@ export function SiteHeader({
           </div>
         </div>
       </div>
-      <div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost">Share</Button>
-          </PopoverTrigger>
-          <SharePopup />
-        </Popover>
-      </div>
-      <div>
-        <Button
-          data-icon="inline-end"
-          onClick={() => {
-            if (onAddContent) {
-              onAddContent();
-            }
-          }}
-        >
-          Add Content <Plus />
-        </Button>
-      </div>
+      {!isOwner ? (
+        <div>
+          <Badge variant="secondary">
+            <Lock data-icon="inline-start" />
+            View only
+          </Badge>
+        </div>
+      ) : null}
+      {isOwner ? (
+        <div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost">Share</Button>
+            </PopoverTrigger>
+            <SharePopup />
+          </Popover>
+        </div>
+      ) : null}
+      {isOwner ? (
+        <div>
+          <Button
+            data-icon="inline-end"
+            onClick={() => {
+              if (onAddContent) {
+                onAddContent();
+              }
+            }}
+          >
+            Add Content <Plus />
+          </Button>
+        </div>
+      ) : null}
     </header>
   );
 }

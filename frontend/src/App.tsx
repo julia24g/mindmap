@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./components/dashboard/Dashboard";
+import PublicDashboard from "./components/dashboard/PublicDashboard";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import { ProtectedRoute } from "./layouts/ProtectedRoute";
@@ -19,6 +20,10 @@ function App() {
             <Route path=":dashboardId" element={<Dashboard />} />
           </Route>
         </Route>
+        <Route
+          path="/public/dashboard/:publicSlug"
+          element={<PublicDashboard />}
+        />
       </Routes>
     </div>
   );

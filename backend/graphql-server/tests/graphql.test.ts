@@ -775,8 +775,8 @@ describe("GraphQL Resolvers", () => {
         userId: "user-123",
         name: "My Dashboard",
         createdAt: new Date("2026-01-18"),
-        updatedAt: null,
-        publicUrl: null,
+        updatedAt: new Date("2026-01-18"),
+        visibility: "PRIVATE",
       };
 
       // Mock getUserIdByFirebaseUid
@@ -788,7 +788,7 @@ describe("GraphQL Resolvers", () => {
       const res = await server.executeOperation({
         query: `mutation($firebaseUid: String!, $name: String!) { 
           createDashboard(firebaseUid: $firebaseUid, name: $name) { 
-            id userId name createdAt updatedAt publicUrl
+            id userId name createdAt updatedAt visibility
           } 
         }`,
         variables: {

@@ -12,6 +12,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum DashboardVisibility {
+  PRIVATE
+  PUBLIC
+}
+
 model User {
   id           String      @id @default(uuid())
   firstName    String      @db.Text
@@ -19,19 +24,23 @@ model User {
   email        String      @unique @db.Text
   firebaseUid  String      @unique @db.Text
   createdAt    DateTime    @default(now()) @db.Timestamptz
-  updatedAt    DateTime?   @updatedAt @db.Timestamptz
+  updatedAt    DateTime    @updatedAt @db.Timestamptz
   dashboards   Dashboard[]
 }
 
 model Dashboard {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  name      String    @db.Text
-  createdAt DateTime  @default(now()) @db.Timestamptz
-  updatedAt DateTime? @updatedAt @db.Timestamptz
-  publicUrl String?   @unique @db.Text
-  contents  Content[]
+  id          String                  @id @default(uuid())
+  userId      String
+  user        User                    @relation(fields: [userId], references: [id])
+  name        String                  @db.Text
+  createdAt   DateTime                @default(now()) @db.Timestamptz
+  updatedAt   DateTime                @updatedAt @db.Timestamptz
+  visibility  DashboardVisibility     @default(PRIVATE)
+  publishedAt DateTime?               @db.Timestamptz
+  publicSlug  String?                 @unique @db.Text
+  contents    Content[]
+
+  @@index([userId])
 }
 
 model Content {
@@ -41,7 +50,9 @@ model Content {
   title       String    @db.Text
   type        String?   @db.Text
   createdAt   DateTime  @default(now()) @db.Timestamptz
-  updatedAt   DateTime? @updatedAt @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
   notesText   String?   @db.Text
   notesJSON   Json?     @db.JsonB
+
+  @@index([dashboardId])
 }

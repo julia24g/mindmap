@@ -9,7 +9,6 @@ const GET_DASHBOARD_QUERY = gql`
       name
       createdAt
       updatedAt
-      publicUrl
     }
   }
 `;

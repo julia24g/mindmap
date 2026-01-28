@@ -2,13 +2,13 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 
-interface ContentNodeData {
+interface PrivateContentNodeData {
   title: string;
   contentId: string;
   onNodeClick?: (contentId: string) => void;
 }
 
-export default memo(({ data }: { data: ContentNodeData }) => {
+export default memo(({ data }: { data: PrivateContentNodeData }) => {
   const handleClick = () => {
     if (data.onNodeClick && data.contentId) {
       data.onNodeClick(data.contentId);

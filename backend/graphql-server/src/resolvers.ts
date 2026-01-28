@@ -24,6 +24,84 @@ async function getUserIdByFirebaseUid(firebaseUid: string): Promise<string> {
   return user.id;
 }
 
+// Helper: fetch graph nodes and edges from Neo4j for a given dashboardId
+async function getGraphData(dashboardId: string) {
+  const session = neo4jDriver.session();
+  try {
+    const tag_to_content = await session.run(
+      `
+          MATCH (tag:Tag)-[:DESCRIBES]->(content:Content {dashboardId: $dashboardId})
+          RETURN DISTINCT tag AS t, content AS c
+          `,
+      { dashboardId },
+    );
+
+    const tag_to_tag = await session.run(
+      `
+          MATCH (parent:Tag)-[r:HAS_SUBTAG]->(sub:Tag)
+          RETURN COLLECT(DISTINCT {start: id(parent), end: id(sub)}) AS subtagRels
+          `,
+    );
+
+    const nodesMap = new Map<string, any>();
+    const edges: any[] = [];
+
+    tag_to_content.records.forEach((record) => {
+      const tag = record.get("t");
+      const content = record.get("c");
+
+      const tagId = tag?.identity?.toNumber ? tag.identity.toNumber() : tag?.identity;
+      const contentInternalId = content?.identity?.toNumber
+        ? content.identity.toNumber()
+        : content?.identity;
+      const contentNodeIdProp = content?.properties?.contentId ?? contentInternalId;
+
+      if (tag && !nodesMap.has(`tag_${tagId}`)) {
+        nodesMap.set(`tag_${tagId}`, {
+          id: `tag_${tagId}`,
+          label: "tag",
+          name: tag.properties.name,
+        });
+      }
+
+      if (content && !nodesMap.has(`content_${contentInternalId}`)) {
+        nodesMap.set(`content_${contentInternalId}`, {
+          id: `content_${contentInternalId}`,
+          label: "content",
+          contentId: contentNodeIdProp,
+          title: content.properties.title || "",
+        });
+      }
+
+      if (tag && content) {
+        edges.push({
+          from: `tag_${tagId}`,
+          to: `content_${contentInternalId}`,
+          type: "DESCRIBES",
+        });
+      }
+    });
+
+    const subtagRels = tag_to_tag.records[0]?.get("subtagRels") || [];
+    subtagRels.forEach((rel: any) => {
+      const start = rel.start && rel.start.toNumber ? rel.start.toNumber() : rel.start;
+      const end = rel.end && rel.end.toNumber ? rel.end.toNumber() : rel.end;
+      edges.push({
+        from: `tag_${start}`,
+        to: `tag_${end}`,
+        type: "HAS_SUBTAG",
+      });
+    });
+
+    return {
+      nodes: Array.from(nodesMap.values()),
+      edges,
+    };
+  } finally {
+    await session.close();
+  }
+}
+
 export const resolvers = {
   DateTime: GraphQLDateTime,
   JSON: GraphQLJSON,
@@ -72,6 +150,21 @@ export const resolvers = {
       }
       return dashboard;
     },
+    // Get a public dashboard by publicSlug
+    async getPublicDashboard(
+      _: any,
+      {
+        publicSlug,
+      }: { publicSlug: string },
+    ) {
+      const dashboard = await prisma.dashboard.findUnique({
+        where: { publicSlug: publicSlug, visibility: "PUBLIC" },
+      });
+      if (!dashboard) {
+        throw new GraphQLError("Dashboard not found");
+      }
+      return dashboard;
+    },
     // Get all dashboards for a user by firebaseUid
     async getDashboards(_: any, { firebaseUid }: { firebaseUid: string }) {
       const userId = await getUserIdByFirebaseUid(firebaseUid);
@@ -83,7 +176,7 @@ export const resolvers = {
           createdAt: true,
           updatedAt: true,
           userId: true,
-          publicUrl: true,
+          publicSlug: true,
         },
         orderBy: {
           createdAt: "asc",
@@ -101,89 +194,19 @@ export const resolvers = {
     ) {
       // Validate user exists in Postgres
       await getUserIdByFirebaseUid(firebaseUid);
-      const session = neo4jDriver.session();
-      try {
-        // Get all tags that describe content for this dashboard and their content nodes
-        const tag_to_content = await session.run(
-          `
-          MATCH (tag:Tag)-[:DESCRIBES]->(content:Content {dashboardId: $dashboardId})
-          RETURN DISTINCT tag AS t, content AS c
-          `,
-          { dashboardId },
-        );
-
-        // Get all HAS_SUBTAG relationships (start/end ids) across tags
-        const tag_to_tag = await session.run(
-          `
-          MATCH (parent:Tag)-[r:HAS_SUBTAG]->(sub:Tag)
-          RETURN COLLECT(DISTINCT {start: id(parent), end: id(sub)}) AS subtagRels
-          `,
-        );
-
-        const nodesMap = new Map<string, any>();
-        const edges: any[] = [];
-
-        tag_to_content.records.forEach((record) => {
-          const tag = record.get("t");
-          const content = record.get("c");
-
-          const tagId = tag?.identity?.toNumber
-            ? tag.identity.toNumber()
-            : tag?.identity;
-          const contentInternalId = content?.identity?.toNumber
-            ? content.identity.toNumber()
-            : content?.identity;
-          const contentNodeIdProp =
-            content?.properties?.contentId ?? contentInternalId;
-
-          if (tag && !nodesMap.has(`tag_${tagId}`)) {
-            nodesMap.set(`tag_${tagId}`, {
-              id: `tag_${tagId}`,
-              label: "tag",
-              name: tag.properties.name,
-            });
-          }
-
-          if (content && !nodesMap.has(`content_${contentInternalId}`)) {
-            nodesMap.set(`content_${contentInternalId}`, {
-              id: `content_${contentInternalId}`,
-              label: "content",
-              // Prefer the contentId property stored on the node (this is the Postgres content id)
-              contentId: contentNodeIdProp,
-              title: content.properties.title || "",
-            });
-          }
-
-          if (tag && content) {
-            edges.push({
-              from: `tag_${tagId}`,
-              to: `content_${contentInternalId}`,
-              type: "DESCRIBES",
-            });
-          }
-        });
-
-        // Safely handle empty tag_to_tag.records and normalize ids
-        const subtagRels = tag_to_tag.records[0]?.get("subtagRels") || [];
-        subtagRels.forEach((rel: any) => {
-          const start =
-            rel.start && rel.start.toNumber ? rel.start.toNumber() : rel.start;
-          const end =
-            rel.end && rel.end.toNumber ? rel.end.toNumber() : rel.end;
-          edges.push({
-            from: `tag_${start}`,
-            to: `tag_${end}`,
-            type: "HAS_SUBTAG",
-          });
-        });
-
-        return {
-          nodes: Array.from(nodesMap.values()),
-          edges,
-        };
-      } finally {
-        await session.close();
+      return await getGraphData(dashboardId);
+    },
+    // Get all nodes and edges in a dashboard's knowledge graph
+    async getPublicGraph(
+      _: any,
+      { dashboardId }: { dashboardId: string },
+    ) {
+      // Verify dashboard exists and is public
+      const dashboard = await prisma.dashboard.findUnique({ where: { id: dashboardId } });
+      if (!dashboard || dashboard.visibility !== "PUBLIC") {
+        throw new GraphQLError("Dashboard not found or not public");
       }
+      return await getGraphData(dashboardId);
     },
     // Get all tags from Neo4j
     async allTags(_: any, { limit }: { limit?: number }) {
