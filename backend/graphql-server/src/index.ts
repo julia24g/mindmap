@@ -3,7 +3,7 @@ import { startStandaloneServer } from "@apollo/server/standalone";
 
 import { neo4jDriver } from "./db/neo4j";
 import { typeDefs } from "./schema";
-import { resolvers } from "./resolvers";
+import { resolvers } from "./graphql/resolvers";
 import "./middleware/firebaseMiddleware"; // Initialize Firebase Admin
 import { GraphQLError } from "graphql/error/GraphQLError";
 import { prisma } from "./lib/prisma";

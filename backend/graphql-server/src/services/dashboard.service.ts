@@ -127,4 +127,14 @@ export const dashboardService = {
       },
     });
   },
+
+  async checkIsOwner(parent: any, ctx: any) {
+    try {
+      if (!parent || !parent.userId) return false;
+      if (!ctx || !ctx.user) return false;
+      return parent.userId === ctx.user.id;
+    } catch (e) {
+      return false;
+    }
+  },
 };

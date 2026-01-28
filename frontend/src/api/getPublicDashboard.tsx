@@ -7,6 +7,7 @@ const GET_PUBLIC_DASHBOARD_QUERY = gql`
     getDashboard(publicSlug: $publicSlug) {
       id
       userId
+      isOwner
       name
       createdAt
       updatedAt
@@ -37,15 +38,10 @@ export function useGetPublicDashboard(publicSlug: string) {
   });
 
   const dashboard = data?.getDashboard ?? null;
-  const isOwner = !!(
-    currentUser &&
-    dashboard &&
-    currentUser.uid === dashboard.userId
-  );
 
   return {
     dashboard,
-    isOwner,
+    isOwner: dashboard?.isOwner ?? false,
     loading,
     error,
     refetch,

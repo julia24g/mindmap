@@ -15,6 +15,12 @@ export const dashboardResolvers = {
     },
   },
 
+  Dashboard: {
+    isOwner: async (parent: any, _args: any, ctx: any) => {
+      return await dashboardService.checkIsOwner(parent, ctx);
+    },
+  },
+
   Mutation: {
     createDashboard: async (_: any, args: any, ctx: any) => {
       return await dashboardService.createDashboard(args, ctx);

@@ -3,19 +3,12 @@ import AppSidebar from "@/components/sidebar/AppSidebar";
 import { SiteHeader } from "@/components/header/SiteHeader";
 import { Outlet, useParams } from "react-router-dom";
 import { useGetDashboard } from "@/api/getDashboard";
-import { useAuthContext } from "@/contexts/AuthContext";
 import { useState } from "react";
 
 export default function DashboardLayout() {
   const { dashboardId } = useParams<{ dashboardId: string }>();
-  const { currentUser } = useAuthContext();
   const { dashboard, loading } = useGetDashboard(dashboardId ?? "");
 
-  const isOwner = !!(
-    currentUser &&
-    dashboard &&
-    currentUser.uid === dashboard.userId
-  );
 
   const [isSplitViewOpen, setIsSplitViewOpen] = useState(false);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(
@@ -34,7 +27,7 @@ export default function DashboardLayout() {
         <SiteHeader
           dashboard={loading ? null : dashboard}
           onAddContent={handleAddContent}
-          isOwner={isOwner}
+          isOwner={dashboard?.isOwner ?? false}
         />
         <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
           <Outlet
@@ -43,7 +36,7 @@ export default function DashboardLayout() {
               setIsSplitViewOpen,
               selectedContentId,
               setSelectedContentId,
-              isOwner,
+              isOwner: dashboard?.isOwner ?? false,
             }}
           />
         </div>

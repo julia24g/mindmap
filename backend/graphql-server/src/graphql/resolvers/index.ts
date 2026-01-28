@@ -22,4 +22,8 @@ export const resolvers = {
     ...graphResolvers.Mutation,
     ...userResolvers.Mutation,
   },
+
+  Dashboard: {
+    ...(dashboardResolvers as any).Dashboard,
+  },
 };

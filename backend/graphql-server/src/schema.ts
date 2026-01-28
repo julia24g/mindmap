@@ -27,6 +27,7 @@ export const typeDefs = `#graphql
         createdAt: DateTime!
         updatedAt: DateTime!
         visibility: String!
+        isOwner: Boolean!
         publishedAt: DateTime
         publicSlug: String
     }

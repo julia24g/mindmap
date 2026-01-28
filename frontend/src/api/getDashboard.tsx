@@ -6,6 +6,7 @@ const GET_DASHBOARD_QUERY = gql`
     getDashboard(dashboardId: $dashboardId) {
       id
       userId
+      isOwner
       name
       createdAt
       updatedAt
