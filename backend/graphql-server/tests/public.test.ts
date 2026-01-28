@@ -16,7 +16,7 @@ jest.mock("firebase-admin/auth", () => ({
 }));
 
 import { ApolloServer } from "@apollo/server";
-import { resolvers } from "../src/resolvers";
+import { resolvers } from "../src/graphql/resolvers";
 import { typeDefs } from "../src/schema";
 import { neo4jDriver } from "../src/db/neo4j";
 import { mockPrisma } from "../__mocks__/prisma.js";

@@ -92,6 +92,9 @@ export const typeDefs = `#graphql
                 createDashboard(
             name: String!
         ): Dashboard
+                publishDashboard(
+                    dashboardId: ID!
+                ): Dashboard
         createUser(
             idToken: String!
             firstName: String!
