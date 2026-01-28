@@ -2,7 +2,6 @@ import { useMemo, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { toReactFlowFormat } from "@/util/graphTransform";
 import { useGetGraph } from "@/api/getGraph";
-import { useAuthContext } from "@/contexts/AuthContext";
 import { NetworkIcon } from "lucide-react";
 import Layout from "@/components/graph/Layout";
 import ContentSidePanel from "@/components/content-panel/ContentSidePanel";
@@ -17,11 +16,8 @@ import { useParams } from "react-router-dom";
 
 export default function Dashboard() {
   const { dashboardId } = useParams<{ dashboardId: string }>();
-  const { currentUser } = useAuthContext();
 
-  const userId = currentUser?.uid ?? "";
-
-  const { graph, loading, error } = useGetGraph(userId, dashboardId ?? "");
+  const { graph, loading, error } = useGetGraph(dashboardId ?? "");
 
   const {
     isSplitViewOpen,

@@ -6,22 +6,12 @@ import { GraphQLError } from "graphql";
 import jwt from "jsonwebtoken";
 import { getAuth } from "firebase-admin/auth";
 import { prisma } from "./lib/prisma";
+import { requireUser } from "./auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 function getAdminAuth() {
   return getAuth();
-}
-
-async function getUserIdByFirebaseUid(firebaseUid: string): Promise<string> {
-  const user = await prisma.user.findUnique({
-    where: { firebaseUid },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new GraphQLError("User not found");
-  }
-  return user.id;
 }
 
 // Helper: fetch graph nodes and edges from Neo4j for a given dashboardId
@@ -50,11 +40,14 @@ async function getGraphData(dashboardId: string) {
       const tag = record.get("t");
       const content = record.get("c");
 
-      const tagId = tag?.identity?.toNumber ? tag.identity.toNumber() : tag?.identity;
+      const tagId = tag?.identity?.toNumber
+        ? tag.identity.toNumber()
+        : tag?.identity;
       const contentInternalId = content?.identity?.toNumber
         ? content.identity.toNumber()
         : content?.identity;
-      const contentNodeIdProp = content?.properties?.contentId ?? contentInternalId;
+      const contentNodeIdProp =
+        content?.properties?.contentId ?? contentInternalId;
 
       if (tag && !nodesMap.has(`tag_${tagId}`)) {
         nodesMap.set(`tag_${tagId}`, {
@@ -84,7 +77,8 @@ async function getGraphData(dashboardId: string) {
 
     const subtagRels = tag_to_tag.records[0]?.get("subtagRels") || [];
     subtagRels.forEach((rel: any) => {
-      const start = rel.start && rel.start.toNumber ? rel.start.toNumber() : rel.start;
+      const start =
+        rel.start && rel.start.toNumber ? rel.start.toNumber() : rel.start;
       const end = rel.end && rel.end.toNumber ? rel.end.toNumber() : rel.end;
       edges.push({
         from: `tag_${start}`,
@@ -106,22 +100,9 @@ export const resolvers = {
   DateTime: GraphQLDateTime,
   JSON: GraphQLJSON,
   Query: {
-    // User management queries
-    async getUser(_: any, { id }: { id: string }) {
-      const user = await prisma.user.findUnique({
-        where: { id },
-      });
-      if (!user) {
-        throw new GraphQLError("User not found");
-      }
-      return user;
-    },
     // Get all content information
-    async getContent(
-      _: any,
-      { id, firebaseUid }: { id: string; firebaseUid: string },
-    ) {
-      const userId = await getUserIdByFirebaseUid(firebaseUid);
+    async getContent(_: any, { id }: { id: string }, ctx: any) {
+      const user = requireUser(ctx);
       const content = await prisma.content.findUnique({
         where: { id },
       });
@@ -130,33 +111,26 @@ export const resolvers = {
       }
       return content;
     },
-    // Get a unique dashboard for a user by firebaseUid and dashboardId
+    // Get a unique dashboard for a user and dashboardId
     async getDashboard(
       _: any,
-      {
-        firebaseUid,
-        dashboardId,
-      }: { firebaseUid: string; dashboardId: string },
+      { dashboardId }: { dashboardId: string },
+      ctx: any,
     ) {
-      const userId = await getUserIdByFirebaseUid(firebaseUid);
+      const user = requireUser(ctx);
       const dashboard = await prisma.dashboard.findUnique({
         where: { id: dashboardId },
       });
       if (!dashboard) {
         throw new GraphQLError("Dashboard not found");
       }
-      if (dashboard.userId !== userId) {
+      if (dashboard.userId !== user.id) {
         throw new GraphQLError("Unauthorized access to dashboard");
       }
       return dashboard;
     },
     // Get a public dashboard by publicSlug
-    async getPublicDashboard(
-      _: any,
-      {
-        publicSlug,
-      }: { publicSlug: string },
-    ) {
+    async getPublicDashboard(_: any, { publicSlug }: { publicSlug: string }) {
       const dashboard = await prisma.dashboard.findUnique({
         where: { publicSlug: publicSlug, visibility: "PUBLIC" },
       });
@@ -165,11 +139,11 @@ export const resolvers = {
       }
       return dashboard;
     },
-    // Get all dashboards for a user by firebaseUid
-    async getDashboards(_: any, { firebaseUid }: { firebaseUid: string }) {
-      const userId = await getUserIdByFirebaseUid(firebaseUid);
+    // Get all dashboards for a user
+    async getDashboards(_: any, __: any, ctx: any) {
+      const user = requireUser(ctx);
       const dashboards = await prisma.dashboard.findMany({
-        where: { userId },
+        where: { userId: user.id },
         select: {
           id: true,
           name: true,
@@ -185,24 +159,17 @@ export const resolvers = {
       return dashboards;
     },
     // Get all nodes and edges in a dashboard's knowledge graph
-    async getGraph(
-      _: any,
-      {
-        firebaseUid,
-        dashboardId,
-      }: { firebaseUid: string; dashboardId: string },
-    ) {
+    async getGraph(_: any, { dashboardId }: { dashboardId: string }, ctx: any) {
       // Validate user exists in Postgres
-      await getUserIdByFirebaseUid(firebaseUid);
+      const user = requireUser(ctx);
       return await getGraphData(dashboardId);
     },
     // Get all nodes and edges in a dashboard's knowledge graph
-    async getPublicGraph(
-      _: any,
-      { dashboardId }: { dashboardId: string },
-    ) {
+    async getPublicGraph(_: any, { dashboardId }: { dashboardId: string }) {
       // Verify dashboard exists and is public
-      const dashboard = await prisma.dashboard.findUnique({ where: { id: dashboardId } });
+      const dashboard = await prisma.dashboard.findUnique({
+        where: { id: dashboardId },
+      });
       if (!dashboard || dashboard.visibility !== "PUBLIC") {
         throw new GraphQLError("Dashboard not found or not public");
       }
@@ -226,39 +193,6 @@ export const resolvers = {
     },
   },
   Mutation: {
-    // User management mutations
-    async login(_: any, { idToken }: { idToken: string }) {
-      let decodedToken;
-      try {
-        decodedToken = await getAdminAuth().verifyIdToken(idToken);
-      } catch (error) {
-        throw new GraphQLError("Invalid Firebase ID token");
-      }
-
-      const firebaseUid = decodedToken.uid;
-
-      const user = await prisma.user.findUnique({
-        where: { firebaseUid },
-      });
-
-      if (!user) {
-        throw new GraphQLError(
-          "User not found. Please create an account first.",
-        );
-      }
-
-      // Generate JWT token for your app
-      const token = jwt.sign(
-        { userId: user.id, email: user.email, firebaseUid: firebaseUid },
-        JWT_SECRET,
-        { expiresIn: "24h" },
-      );
-
-      return {
-        user: user,
-        token,
-      };
-    },
     async createUser(
       _: any,
       {
@@ -315,29 +249,28 @@ export const resolvers = {
     async addContent(
       _: any,
       {
-        firebaseUid,
         dashboardId,
         title,
         type,
         notesText,
         notesJSON,
       }: {
-        firebaseUid: string;
         dashboardId: string;
         title: string;
         type: string;
         notesText: string;
         notesJSON: any;
       },
+      ctx: any,
     ) {
-      const userId = await getUserIdByFirebaseUid(firebaseUid);
+      const user = requireUser(ctx);
 
       // Verify that the dashboard belongs to the user
       const dashboard = await prisma.dashboard.findUnique({
         where: { id: dashboardId },
       });
 
-      if (!dashboard || dashboard.userId !== userId) {
+      if (!dashboard || dashboard.userId !== user.id) {
         throw new GraphQLError("Dashboard not found or unauthorized");
       }
 
@@ -416,11 +349,20 @@ export const resolvers = {
         type,
         notesText,
         notesJSON,
-      }: { id: string; title: string; type: string; notesText: string; notesJSON: any },
+      }: {
+        id: string;
+        title: string;
+        type: string;
+        notesText: string;
+        notesJSON: any;
+      },
+      ctx: any,
     ) {
       const content = await prisma.content.findUnique({
         where: { id },
       });
+
+      const user = requireUser(ctx);
 
       if (!content) {
         throw new GraphQLError("Content not found");
@@ -445,7 +387,7 @@ export const resolvers = {
       return updatedContent;
     },
     // Delete content from both Postgres and Neo4j
-    async deleteContent(_: any, { id }: { id: string }) {
+    async deleteContent(_: any, { id }: { id: string }, ctx: any) {
       const content = await prisma.content.findUnique({
         where: { id },
       });
@@ -453,6 +395,8 @@ export const resolvers = {
       if (!content) {
         return false;
       }
+
+      const user = requireUser(ctx);
 
       const session = neo4jDriver.session();
       try {
@@ -473,17 +417,13 @@ export const resolvers = {
       }
     },
     // Create a new dashboard for a user
-    async createDashboard(
-      _: any,
-      { firebaseUid, name }: { firebaseUid: string; name: string },
-    ) {
-      const userId = await getUserIdByFirebaseUid(firebaseUid);
-
+    async createDashboard(_: any, { name }: { name: string }, ctx: any) {
+      const user = requireUser(ctx);
       const dashboard = await prisma.dashboard.create({
         data: {
           name,
           user: {
-            connect: { id: userId },
+            connect: { id: user.id },
           },
         },
       });

@@ -2,8 +2,8 @@ import { gql, useMutation } from "@apollo/client";
 import { Dashboard } from "@/types";
 
 const CREATE_DASHBOARD_MUTATION = gql`
-  mutation CreateDashboard($firebaseUid: String!, $name: String!) {
-    createDashboard(firebaseUid: $firebaseUid, name: $name) {
+  mutation CreateDashboard($name: String!) {
+    createDashboard(name: $name) {
       id
       id
       name
@@ -12,7 +12,6 @@ const CREATE_DASHBOARD_MUTATION = gql`
 `;
 
 export interface CreateDashboardInput {
-  firebaseUid: string;
   name: string;
 }
 

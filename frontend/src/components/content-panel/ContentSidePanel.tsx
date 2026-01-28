@@ -9,7 +9,6 @@ import { ChevronsRight } from "lucide-react";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 
-import { useAuthContext } from "@/contexts/AuthContext";
 import { useGetContent } from "@/api/getContent";
 import { useAddContent } from "@/api/addContent";
 
@@ -44,7 +43,6 @@ export default function ContentSidePanel({
   onClose,
   mode = "view",
 }: ContentSidePanelProps) {
-  const { currentUser } = useAuthContext();
   const { dashboardId } = useParams<{ dashboardId: string }>();
 
   const editor = useCreateBlockNote();
@@ -62,16 +60,12 @@ export default function ContentSidePanel({
     defaultValues: { title: "", type: undefined },
   });
 
-  const firebaseUid = currentUser?.uid ?? "";
   const dashboardIdSafe = dashboardId ?? "";
   const selectedContentId = mode === "create" ? "" : (contentId ?? "");
 
-  const { addContent, loading: addLoading } = useAddContent(
-    firebaseUid,
-    dashboardIdSafe,
-  );
+  const { addContent, loading: addLoading } = useAddContent(dashboardIdSafe);
 
-  const { content } = useGetContent(selectedContentId, firebaseUid);
+  const { content } = useGetContent(selectedContentId);
 
   const title = watch("title");
   const type = watch("type");
@@ -131,13 +125,12 @@ export default function ContentSidePanel({
 
   const onSubmit: SubmitHandler<FormValues> = async ({ title, type }) => {
     const trimmedTitle = title?.trim();
-    if (!firebaseUid || !trimmedTitle) return;
+    if (!trimmedTitle) return;
 
     const transformedNotes = blockNoteTransform(editor.document);
 
     await addContent({
       variables: {
-        firebaseUid,
         dashboardId: dashboardIdSafe,
         title: trimmedTitle,
         type,

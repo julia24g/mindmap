@@ -6,9 +6,27 @@ import { ApolloProvider } from "@apollo/client/react";
 import { AuthProvider } from "./contexts/AuthContext";
 import App from "./App.tsx";
 import "./index.css";
+import { setContext } from "@apollo/client/link/context";
+import { auth } from "@/lib/firebase";
+
+const httpLink = new HttpLink({
+  uri: import.meta.env.VITE_GRAPHQL_ENDPOINT,
+});
+
+const authLink = setContext(async (_, { headers }) => {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+});
 
 const client = new ApolloClient({
-  link: new HttpLink({ uri: import.meta.env.VITE_GRAPHQL_ENDPOINT }),
+  link: authLink.concat(httpLink),
   cache: new InMemoryCache(),
 });
 

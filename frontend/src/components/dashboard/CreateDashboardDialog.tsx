@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useCreateDashboard } from "@/api/createDashboard";
-import { useAuthContext } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 type Props = {
@@ -30,23 +29,19 @@ export function CreateDashboardDialog({
   refetchDashboards,
 }: Props) {
   const navigate = useNavigate();
-  const { currentUser } = useAuthContext();
   const { createDashboard } = useCreateDashboard();
   const nameRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = nameRef.current?.value?.trim() || "";
-    if (!currentUser?.uid) {
-      return;
-    }
     if (!name) {
       return;
     }
 
     try {
       const result = await createDashboard({
-        variables: { firebaseUid: currentUser.uid, name },
+        variables: { name },
       });
       const newId = result.data?.createDashboard?.id;
       if (refetchDashboards) await refetchDashboards();

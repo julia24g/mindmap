@@ -4,7 +4,6 @@ import { GET_GRAPH } from "@/api/getGraph";
 
 const ADD_CONTENT = gql`
   mutation AddContent(
-    $firebaseUid: String!
     $dashboardId: ID!
     $title: String!
     $type: String
@@ -12,7 +11,6 @@ const ADD_CONTENT = gql`
     $notesJSON: JSON
   ) {
     addContent(
-      firebaseUid: $firebaseUid
       dashboardId: $dashboardId
       title: $title
       type: $type
@@ -32,7 +30,6 @@ const ADD_CONTENT = gql`
 `;
 
 export interface AddContentInput {
-  firebaseUid: string;
   dashboardId: string;
   title: string;
   type?: string;
@@ -44,20 +41,19 @@ export interface AddContentData {
   addContent: Content;
 }
 
-export function useAddContent(firebaseUid: string, dashboardId: string) {
+export function useAddContent(dashboardId: string) {
   const [addContent, { data, loading, error }] = useMutation<
     AddContentData,
     AddContentInput
   >(ADD_CONTENT, {
-    refetchQueries:
-      firebaseUid && dashboardId
-        ? [
-            {
-              query: GET_GRAPH,
-              variables: { firebaseUid, dashboardId },
-            },
-          ]
-        : [],
+    refetchQueries: dashboardId
+      ? [
+          {
+            query: GET_GRAPH,
+            variables: { dashboardId },
+          },
+        ]
+      : [],
     awaitRefetchQueries: true,
   });
 

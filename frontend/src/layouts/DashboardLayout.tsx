@@ -9,10 +9,7 @@ import { useState } from "react";
 export default function DashboardLayout() {
   const { dashboardId } = useParams<{ dashboardId: string }>();
   const { currentUser } = useAuthContext();
-  const { dashboard, loading } = useGetDashboard(
-    currentUser?.uid ?? "",
-    dashboardId ?? "",
-  );
+  const { dashboard, loading } = useGetDashboard(dashboardId ?? "");
 
   const isOwner = !!(
     currentUser &&

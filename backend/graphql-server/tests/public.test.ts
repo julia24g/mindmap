@@ -86,7 +86,10 @@ describe("Public GraphQL endpoints", () => {
               } else if (key === "c") {
                 return {
                   identity: "content1",
-                  properties: { title: "Public Content", contentId: "content1" },
+                  properties: {
+                    title: "Public Content",
+                    contentId: "content1",
+                  },
                 };
               }
               return undefined;
@@ -119,9 +122,13 @@ describe("Public GraphQL endpoints", () => {
     expect(Array.isArray(data.getPublicGraph.edges)).toBe(true);
 
     const nodeIds = data.getPublicGraph.nodes.map((n: any) => n.id);
-    expect(nodeIds).toEqual(expect.arrayContaining(["tag_tag1", "content_content1"]));
+    expect(nodeIds).toEqual(
+      expect.arrayContaining(["tag_tag1", "content_content1"]),
+    );
 
     const edgeTypes = data.getPublicGraph.edges.map((e: any) => e.type);
-    expect(edgeTypes).toEqual(expect.arrayContaining(["DESCRIBES", "HAS_SUBTAG"]));
+    expect(edgeTypes).toEqual(
+      expect.arrayContaining(["DESCRIBES", "HAS_SUBTAG"]),
+    );
   });
 });

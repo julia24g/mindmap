@@ -21,7 +21,11 @@ export default function PublicDashboardAlert() {
             </AlertDescription>
           </div>
           <AlertAction>
-            <Button size="sm" variant="default" onClick={() => navigate("/signup")}>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => navigate("/signup")}
+            >
               Sign up
             </Button>
           </AlertAction>

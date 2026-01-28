@@ -10,7 +10,6 @@ const serviceAccount = JSON.parse(
   readFileSync(join(__dirname, "../../firebaseServiceAccount.json"), "utf-8"),
 );
 
-// Prevent "app already exists" in dev / hot reload
 if (getApps().length === 0) {
   initializeApp({
     credential: cert(serviceAccount),

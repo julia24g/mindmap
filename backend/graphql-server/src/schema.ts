@@ -59,20 +59,20 @@ export const typeDefs = `#graphql
         token: String!
     }
     type Query {
-        getGraph(firebaseUid: String!, dashboardId: ID!): UserGraph
-        getDashboards(firebaseUid: String!): [Dashboard!]!
-        getDashboard(firebaseUid: String!, dashboardId: ID!): Dashboard
-        getContent(id: ID!, firebaseUid: String!): Content
+        # Private
+        getGraph(dashboardId: ID!): UserGraph
+        getDashboards: [Dashboard!]!
+        getDashboard(dashboardId: ID!): Dashboard
+        getContent(id: ID!): Content
+
+        # Public
         allTags(limit: Int): [String!]!
-        getContentByTag(userId: ID!, tagName: String!): [Content!]!
-        getUser(id: ID!): User
-        getUserByEmail(email: String!): User
         getPublicDashboard(publicSlug: String!): Dashboard
         getPublicGraph(dashboardId: ID!): UserGraph
     }
     type Mutation {
+        # Private
         addContent(
-            firebaseUid: String!
             dashboardId: ID!
             title: String!
             type: String
@@ -89,24 +89,13 @@ export const typeDefs = `#graphql
         deleteContent(
             id: ID!
         ): Boolean
-        # User management mutations
-        login(idToken: String!): AuthResponse
+                createDashboard(
+            name: String!
+        ): Dashboard
         createUser(
             idToken: String!
             firstName: String!
             lastName: String!
         ): AuthResponse
-        updateUser(
-            id: ID!
-            firstName: String
-            lastName: String
-            email: String
-        ): User
-        deleteUser(id: ID!): Boolean
-        # Dashboard mutations
-        createDashboard(
-            firebaseUid: String!
-            name: String!
-        ): Dashboard
     }
 `;

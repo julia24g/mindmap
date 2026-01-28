@@ -8,6 +8,7 @@ jest.mock("../src/lib/prisma", () => {
 
 jest.mock("neo4j-driver");
 jest.mock("firebase-admin");
+jest.mock("../src/auth", () => ({ requireUser: jest.fn() }));
 
 import * as firebaseAdminMock from "../__mocks__/firebase-admin";
 
@@ -25,6 +26,7 @@ import {
   auth as mockAuth,
 } from "../__mocks__/firebase-admin";
 import { mockPrisma } from "../__mocks__/prisma.js";
+import { requireUser } from "../src/auth";
 
 const MOCK_LLM_RESPONSE = [
   "software engineering",
@@ -53,6 +55,9 @@ describe("GraphQL Resolvers", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+
+    // Reset requireUser mock default to authenticated user
+    (requireUser as jest.Mock).mockImplementation(() => ({ id: "1" }));
 
     // Restore auth mock implementation after resetAllMocks
     mockAuth.mockImplementation(() => ({
@@ -84,11 +89,10 @@ describe("GraphQL Resolvers", () => {
 
   // Query - content
   it("should return error when contentId does not exist in Postgres", async () => {
-    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: "1" });
     mockPrisma.content.findUnique.mockResolvedValueOnce(null);
     const res = await server.executeOperation({
-      query: `query($id: ID!, $firebaseUid: String!) { getContent(id: $id, firebaseUid: $firebaseUid) { title } }`,
-      variables: { id: "999", firebaseUid: "test-firebase-uid" },
+      query: `query($id: ID!) { getContent(id: $id) { title } }`,
+      variables: { id: "999" },
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
@@ -96,14 +100,13 @@ describe("GraphQL Resolvers", () => {
   });
 
   it("should return the correct content object when contentId exists", async () => {
-    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: "1" });
     mockPrisma.content.findUnique.mockResolvedValueOnce({
       id: "1",
       title: "Test Content",
     });
     const res = await server.executeOperation({
-      query: `query($id: ID!, $firebaseUid: String!) { getContent(id: $id, firebaseUid: $firebaseUid) { title } }`,
-      variables: { id: "1", firebaseUid: "test-firebase-uid" },
+      query: `query($id: ID!) { getContent(id: $id) { title } }`,
+      variables: { id: "1" },
     });
     const data = (res as any).body.singleResult.data;
     expect(data.getContent.title).toBe("Test Content");
@@ -111,25 +114,26 @@ describe("GraphQL Resolvers", () => {
 
   // Query - get_user_graph
   it("should return an error when firebaseUid does not exist in Neo4j/Postgres", async () => {
-    // Mock Prisma to return no user
-    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    // Simulate unauthenticated / missing user via requireUser
+    (requireUser as jest.Mock).mockImplementationOnce(() => {
+      throw new Error("Unauthenticated");
+    });
     neo4jSessionMock.run.mockResolvedValueOnce({ records: [] });
 
     const res = await server.executeOperation({
-      query: `query($firebaseUid: String!, $dashboardId: ID!) { getGraph(firebaseUid: $firebaseUid, dashboardId: $dashboardId) { nodes { id } edges { from to } } }`,
+      query: `query($dashboardId: ID!) { getGraph(dashboardId: $dashboardId) { nodes { id } edges { from to } } }`,
       variables: {
-        firebaseUid: "nonexistent-firebase-uid",
         dashboardId: "dashboard-1",
       },
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
-    expect(errors?.[0].message).toMatch(/User not found/);
+    expect(errors?.[0].message).toMatch(/Unauthenticated/);
   });
 
-  it("should return all relevant nodes and edges for a firebaseUid that exists", async () => {
-    // Mock Prisma to return a user with userId when looking up by firebaseUid
-    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: "1" });
+  it("should return all relevant nodes and edges for a dashboard that exists", async () => {
+    // Ensure requireUser returns a valid user id
+    (requireUser as jest.Mock).mockImplementationOnce(() => ({ id: "1" }));
 
     // Mock Neo4j to return records for nodes and edges in the expected structure
     neo4jSessionMock.run
@@ -169,9 +173,8 @@ describe("GraphQL Resolvers", () => {
       });
 
     const res = await server.executeOperation({
-      query: `query($firebaseUid: String!, $dashboardId: ID!) { getGraph(firebaseUid: $firebaseUid, dashboardId: $dashboardId) { nodes { id label contentId name title } edges { from to type } } }`,
+      query: `query($dashboardId: ID!) { getGraph(dashboardId: $dashboardId) { nodes { id label contentId name title } edges { from to type } } }`,
       variables: {
-        firebaseUid: "test-firebase-uid",
         dashboardId: "dashboard-1",
       },
     });
@@ -217,7 +220,7 @@ describe("GraphQL Resolvers", () => {
   // Mutation - addContent
   it("should successfully add content and create tags/relationships in Neo4j when userId exists", async () => {
     // Mock Prisma responses
-    // First call: Look up user by firebaseUid
+    // First call: Look up user
     mockPrisma.user.findUnique.mockResolvedValueOnce({ id: "1" });
     // Second call: Verify dashboard belongs to user
     mockPrisma.dashboard.findUnique.mockResolvedValueOnce({
@@ -252,9 +255,8 @@ describe("GraphQL Resolvers", () => {
     });
 
     const res = await server.executeOperation({
-      query: `mutation($firebaseUid: String!, $dashboardId: ID!, $title: String!) { addContent(firebaseUid: $firebaseUid, dashboardId: $dashboardId, title: $title) { id title } }`,
+      query: `mutation($dashboardId: ID!, $title: String!) { addContent(dashboardId: $dashboardId, title: $title) { id title } }`,
       variables: {
-        firebaseUid: "test-firebase-uid",
         dashboardId: "dashboard-1",
         title: "New Content",
       },
@@ -272,20 +274,21 @@ describe("GraphQL Resolvers", () => {
   });
 
   it("should throw an error if userId does not exist in Postgres", async () => {
-    // Mock the user check to return no user
-    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    // Simulate unauthenticated / missing user via requireUser
+    (requireUser as jest.Mock).mockImplementationOnce(() => {
+      throw new Error("Unauthenticated");
+    });
 
     const res = await server.executeOperation({
-      query: `mutation($firebaseUid: String!, $dashboardId: ID!, $title: String!) { addContent(firebaseUid: $firebaseUid, dashboardId: $dashboardId, title: $title) { id title } }`,
+      query: `mutation($dashboardId: ID!, $title: String!) { addContent(dashboardId: $dashboardId, title: $title) { id title } }`,
       variables: {
-        firebaseUid: "nonexistent-firebase-uid",
         dashboardId: "dashboard-1",
         title: "New Content",
       },
     });
     const errors = (res as any).body?.singleResult?.errors;
     expect(errors).toBeDefined();
-    expect(errors?.[0].message).toMatch("User not found");
+    expect(errors?.[0].message).toMatch(/Unauthenticated/);
   });
 
   // Mutation - deleteContent
@@ -331,95 +334,6 @@ describe("GraphQL Resolvers", () => {
 
   // User Management Tests
   describe("User Management", () => {
-    // Mutation - login
-    it("should successfully login with valid Firebase token", async () => {
-      const mockUser = {
-        id: "user-123",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-        firebaseUid: "firebase-uid-123",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      // Mock Firebase token verification
-      mockVerifyIdToken.mockResolvedValueOnce({
-        uid: "firebase-uid-123",
-        email: "john@example.com",
-      });
-
-      // Mock user lookup by firebaseUid
-      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
-
-      const res = await server.executeOperation({
-        query: `mutation($idToken: String!) { 
-          login(idToken: $idToken) { 
-            user { id firstName lastName email firebaseUid createdAt } 
-            token 
-          } 
-        }`,
-        variables: { idToken: "valid-firebase-token" },
-      });
-
-      const data = (res as any).body.singleResult.data;
-      expect(data.login.user).toMatchObject({
-        id: "user-123",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-        firebaseUid: "firebase-uid-123",
-      });
-      expect(data.login.token).toBeDefined();
-      expect(typeof data.login.token).toBe("string");
-    });
-
-    it("should return error for invalid Firebase token", async () => {
-      // Mock Firebase token verification failure
-      mockVerifyIdToken.mockRejectedValueOnce(new Error("Invalid token"));
-
-      const res = await server.executeOperation({
-        query: `mutation($idToken: String!) { 
-          login(idToken: $idToken) { 
-            user { id } 
-            token 
-          } 
-        }`,
-        variables: { idToken: "invalid-firebase-token" },
-      });
-
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch("Invalid Firebase ID token");
-    });
-
-    it("should return error when user does not exist in database", async () => {
-      // Mock Firebase token verification success
-      mockVerifyIdToken.mockResolvedValueOnce({
-        uid: "firebase-uid-999",
-        email: "nonexistent@example.com",
-      });
-
-      // Mock user not found
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-
-      const res = await server.executeOperation({
-        query: `mutation($idToken: String!) { 
-          login(idToken: $idToken) { 
-            user { id } 
-            token 
-          } 
-        }`,
-        variables: { idToken: "valid-firebase-token" },
-      });
-
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch(
-        "User not found. Please create an account first.",
-      );
-    });
-
     // Mutation - createUser
     it("should successfully create a new user", async () => {
       const mockUser = {
@@ -438,7 +352,7 @@ describe("GraphQL Resolvers", () => {
         email: "jane@example.com",
       });
 
-      // Mock check for existing user by firebaseUid
+      // Mock check for existing user
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       // Mock check for existing user by email
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
@@ -502,58 +416,7 @@ describe("GraphQL Resolvers", () => {
         "User with this Firebase UID already exists",
       );
     });
-
-    // Query - getUser
-    it("should return user when userId exists", async () => {
-      const mockUser = {
-        id: "user-123",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-        firebaseUid: "firebase-uid-123",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
-
-      const res = await server.executeOperation({
-        query: `query($id: ID!) { 
-          getUser(id: $id) { 
-            id firstName lastName email firebaseUid createdAt updatedAt 
-          } 
-        }`,
-        variables: { id: "user-123" },
-      });
-
-      const data = (res as any).body.singleResult.data;
-      expect(data.getUser).toMatchObject({
-        id: "user-123",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-        firebaseUid: "firebase-uid-123",
-      });
-    });
-
-    it("should return error when userId does not exist", async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-
-      const res = await server.executeOperation({
-        query: `query($id: ID!) { 
-          getUser(id: $id) { 
-            id firstName 
-          } 
-        }`,
-        variables: { id: "nonexistent-user" },
-      });
-
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch("User not found");
-    });
   });
-
   // Mutation - updateContent
   describe("Content Updates", () => {
     it("should successfully update content title", async () => {
@@ -779,20 +642,21 @@ describe("GraphQL Resolvers", () => {
         visibility: "PRIVATE",
       };
 
-      // Mock getUserIdByFirebaseUid
-      mockPrisma.user.findUnique.mockResolvedValueOnce(mockUser);
+      // Ensure requireUser returns the expected user
+      (requireUser as jest.Mock).mockImplementationOnce(() => ({
+        id: "user-123",
+      }));
 
       // Mock dashboard creation
       mockPrisma.dashboard.create.mockResolvedValueOnce(mockDashboard);
 
       const res = await server.executeOperation({
-        query: `mutation($firebaseUid: String!, $name: String!) { 
-          createDashboard(firebaseUid: $firebaseUid, name: $name) { 
+        query: `mutation($name: String!) { 
+          createDashboard(name: $name) { 
             id userId name createdAt updatedAt visibility
           } 
         }`,
         variables: {
-          firebaseUid: "test-firebase-uid",
           name: "My Dashboard",
         },
       });
@@ -804,11 +668,7 @@ describe("GraphQL Resolvers", () => {
         name: "My Dashboard",
       });
 
-      // Verify Prisma methods were called correctly
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { firebaseUid: "test-firebase-uid" },
-        select: { id: true },
-      });
+      // Verify dashboard.create was called to create the dashboard
       expect(mockPrisma.dashboard.create).toHaveBeenCalledWith({
         data: {
           name: "My Dashboard",
@@ -819,25 +679,26 @@ describe("GraphQL Resolvers", () => {
       });
     });
 
-    it("should throw an error if firebaseUid does not exist", async () => {
-      // Mock user not found
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    it("should throw an error if user does not exist", async () => {
+      // Simulate unauthenticated / missing user via requireUser
+      (requireUser as jest.Mock).mockImplementationOnce(() => {
+        throw new Error("Unauthenticated");
+      });
 
       const res = await server.executeOperation({
-        query: `mutation($firebaseUid: String!, $name: String!) { 
-          createDashboard(firebaseUid: $firebaseUid, name: $name) { 
+        query: `mutation($name: String!) { 
+          createDashboard(name: $name) { 
             id name 
           } 
         }`,
         variables: {
-          firebaseUid: "nonexistent-firebase-uid",
           name: "My Dashboard",
         },
       });
 
       const errors = (res as any).body?.singleResult?.errors;
       expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch("User not found");
+      expect(errors?.[0].message).toMatch(/Unauthenticated/);
 
       // Verify dashboard.create was never called
       expect(mockPrisma.dashboard.create).not.toHaveBeenCalled();

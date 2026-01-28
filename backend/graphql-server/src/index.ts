@@ -5,6 +5,48 @@ import { neo4jDriver } from "./db/neo4j";
 import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
 import "./middleware/firebaseMiddleware"; // Initialize Firebase Admin
+import { GraphQLError } from "graphql/error/GraphQLError";
+import { prisma } from "./lib/prisma";
+import { getAuth } from "firebase-admin/auth";
+
+type ContextUser = {
+  id: string; // your Postgres user.id
+  firebaseUid: string; // firebase uid
+  email?: string | null;
+};
+
+type GraphQLContext = {
+  user: ContextUser | null;
+  // optionally keep headers if you still need them
+  headers: Record<string, any>;
+};
+
+function getBearerToken(authHeader?: string | string[]) {
+  const h = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+  if (!h) return null;
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m?.[1] ?? null;
+}
+
+async function buildUserFromFirebaseIdToken(
+  idToken: string,
+): Promise<ContextUser> {
+  const decoded = await getAuth().verifyIdToken(idToken);
+  const firebaseUid = decoded.uid;
+
+  const user = await prisma.user.findUnique({
+    where: { firebaseUid },
+    select: { id: true, firebaseUid: true, email: true },
+  });
+
+  if (!user) {
+    throw new GraphQLError("User not found", {
+      extensions: { code: "UNAUTHENTICATED" },
+    });
+  }
+
+  return user;
+}
 
 const server = new ApolloServer({
   typeDefs,
@@ -22,10 +64,19 @@ const server = new ApolloServer({
 void (async () => {
   const { url } = await startStandaloneServer(server, {
     listen: { port: 4000 },
-    context: async ({ req }) => {
-      return {
-        headers: req.headers,
-      };
+    context: async ({ req }): Promise<GraphQLContext> => {
+      const token = getBearerToken(req.headers.authorization);
+
+      if (!token) {
+        return { user: null, headers: req.headers };
+      }
+
+      try {
+        const user = await buildUserFromFirebaseIdToken(token);
+        return { user, headers: req.headers };
+      } catch (e) {
+        throw e;
+      }
     },
   });
 

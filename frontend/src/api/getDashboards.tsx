@@ -2,27 +2,21 @@ import { gql, useQuery } from "@apollo/client";
 import { Dashboard } from "@/types/dashboard";
 
 const GET_DASHBOARDS_QUERY = gql`
-  query GetDashboards($firebaseUid: String!) {
-    getDashboards(firebaseUid: $firebaseUid) {
+  query GetDashboards {
+    getDashboards {
       id
       name
     }
   }
 `;
 
-export interface GetDashboardsInput {
-  firebaseUid: string;
-}
-
 export interface GetDashboardsData {
   getDashboards: Dashboard[];
 }
 
-export function useGetDashboards(firebaseUid: string) {
-  const { data, loading, error, refetch } = useQuery<
-    GetDashboardsData,
-    GetDashboardsInput
-  >(GET_DASHBOARDS_QUERY, { variables: { firebaseUid } });
+export function useGetDashboards() {
+  const { data, loading, error, refetch } =
+    useQuery<GetDashboardsData>(GET_DASHBOARDS_QUERY);
   return {
     dashboards: data?.getDashboards ?? [],
     loading,
