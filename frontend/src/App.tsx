@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
 import Dashboard from "./components/dashboard/Dashboard";
 import PublicDashboard from "./components/dashboard/PublicDashboard";
 import LoginPage from "./pages/LoginPage";
@@ -10,6 +11,7 @@ import DashboardIndex from "./components/dashboard/DashboardIndex";
 function App() {
   return (
     <div className="min-h-screen bg-notion-bg">
+      <Toaster />
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />

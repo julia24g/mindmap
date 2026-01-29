@@ -1,33 +1,122 @@
-import { PopoverContent } from "@/components/ui/popover";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  PopoverContent,
+  PopoverTrigger,
+  Popover,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverDescription,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Dashboard } from "@/types/dashboard";
+import { usePublishDashboard } from "@/api/publishDashboard";
+import { useUnpublishDashboard } from "@/api/unpublishDashboard";
+import { Share, Copy } from "lucide-react";
+import { toast } from "sonner";
+import { Field, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-export default function SharePopup() {
+export default function SharePopup({
+  dashboard,
+  isOwner,
+}: {
+  dashboard?: Dashboard | null;
+  isOwner?: boolean;
+}) {
+  const { publishDashboard, loading: publishLoading } = usePublishDashboard();
+  const { unpublishDashboard, loading: unpublishLoading } =
+    useUnpublishDashboard();
+
+  const isPublic = dashboard?.visibility === "PUBLIC";
+
+  const publicUrl =
+    isPublic && dashboard?.publicSlug
+      ? `https://yourapp.com/public/dashboard/${dashboard.publicSlug}`
+      : "";
+
+  const handleCopy = async () => {
+    if (!publicUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Copied link", { position: "top-center" });
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not copy link", { position: "top-center" });
+    }
+  };
+
+  const handleClick = async () => {
+    if (!dashboard || !isOwner) return;
+    try {
+      if (isPublic) {
+        await unpublishDashboard({ variables: { dashboardId: dashboard.id } });
+        toast("Dashboard unpublished", { position: "top-center" });
+      } else {
+        await publishDashboard({ variables: { dashboardId: dashboard.id } });
+        toast.success("Dashboard published successfully", {
+          position: "top-center",
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
-    <PopoverContent className="w-96">
-      <Tabs defaultValue="share" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="share">Share</TabsTrigger>
-          <TabsTrigger value="publish">Publish</TabsTrigger>
-        </TabsList>
-        <TabsContent value="share">
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Input placeholder="Enter email address" />
-              <Button>Invite</Button>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost">
+          <Share />
+          Share
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent align="end" className="w-100">
+        <PopoverHeader>
+          <PopoverTitle>Share dashboard</PopoverTitle>
+          <PopoverDescription>
+            Publishing generates a public, read-only link for sharing.
+          </PopoverDescription>
+        </PopoverHeader>
+        {isPublic && dashboard?.publicSlug && (
+          <Field>
+            <div className="relative">
+              <Input
+                readOnly
+                value={publicUrl}
+                className="pr-10"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={handleCopy}
+                aria-label="Copy public URL"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
             </div>
-          </div>
-        </TabsContent>
-        <TabsContent value="publish">
-          <div className="space-y-2">
-            <h3 className="font-medium text-sm">Publish</h3>
-            <p className="text-sm text-muted-foreground">
-              Publish your content publicly.
-            </p>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </PopoverContent>
+            <FieldDescription>
+              Content details, private notes, and editing remain private.
+            </FieldDescription>
+          </Field>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={handleClick}
+          disabled={
+            !isOwner || !dashboard || publishLoading || unpublishLoading
+          }
+        >
+          {isPublic ? "Unpublish" : "Publish"}
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }

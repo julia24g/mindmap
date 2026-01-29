@@ -9,7 +9,6 @@ export default function DashboardLayout() {
   const { dashboardId } = useParams<{ dashboardId: string }>();
   const { dashboard, loading } = useGetDashboard(dashboardId ?? "");
 
-
   const [isSplitViewOpen, setIsSplitViewOpen] = useState(false);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(
     null,

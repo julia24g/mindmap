@@ -3,23 +3,16 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Lock } from "lucide-react";
-import { Popover, PopoverTrigger } from "@radix-ui/react-popover";
 import SharePopup from "./SharePopup";
+import { Dashboard } from "@/types/dashboard";
 import { formatDate, formatFullDate } from "@/util/dateFormat";
-
-type DashboardMeta = {
-  id: string;
-  name: string;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
 
 export function SiteHeader({
   dashboard,
   onAddContent,
   isOwner,
 }: {
-  dashboard?: DashboardMeta | null;
+  dashboard?: Dashboard | null;
   onAddContent?: () => void;
   isOwner?: boolean;
 }) {
@@ -43,8 +36,13 @@ export function SiteHeader({
         />
 
         <div className="flex flex-col">
-          <h1 className="text-base font-medium">
+          <h1 className="text-base font-medium flex items-center">
             {dashboard?.name ?? "Dashboards"}
+            {isOwner && dashboard?.visibility === "PUBLIC" ? (
+              <Badge className="ml-2 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                Public
+              </Badge>
+            ) : null}
           </h1>
           <div className="text-xs opacity-70">
             Created {createdFull} · Last edited{" "}
@@ -60,16 +58,7 @@ export function SiteHeader({
           </Badge>
         </div>
       ) : null}
-      {isOwner ? (
-        <div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost">Share</Button>
-            </PopoverTrigger>
-            <SharePopup />
-          </Popover>
-        </div>
-      ) : null}
+      {isOwner ? <SharePopup dashboard={dashboard} isOwner={isOwner} /> : null}
       {isOwner ? (
         <div>
           <Button
