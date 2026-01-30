@@ -100,7 +100,6 @@ export const typeDefs = `#graphql
                     dashboardId: ID!
                 ): Dashboard
         createUser(
-            idToken: String!
             firstName: String!
             lastName: String!
         ): AuthResponse

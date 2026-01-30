@@ -35,11 +35,8 @@ export const useAuth = () => {
         password,
       );
 
-      const idToken = await userCredential.user.getIdToken();
-
       await createUserMutation({
         variables: {
-          idToken,
           firstName,
           lastName,
         },
@@ -94,13 +91,11 @@ export const useAuth = () => {
       const userCredential = await signInWithPopup(auth, provider);
 
       try {
-        const idToken = await userCredential.user.getIdToken();
         const displayName = userCredential.user.displayName || "";
         const [first = "", last = ""] = displayName.split(" ");
 
         await createUserMutation({
           variables: {
-            idToken,
             firstName: firstName || first || "User",
             lastName: lastName || last || "",
           },

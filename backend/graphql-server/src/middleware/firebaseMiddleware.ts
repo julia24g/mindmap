@@ -1,17 +1,9 @@
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import { initializeApp, cert } from "firebase-admin/app";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const json = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64!, "base64").toString("utf8");
+const serviceAccount = JSON.parse(json);
+serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
 
-const serviceAccount = JSON.parse(
-  readFileSync(join(__dirname, "../../firebaseServiceAccount.json"), "utf-8"),
-);
-
-if (getApps().length === 0) {
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
-}
+initializeApp({
+  credential: cert(serviceAccount),
+});

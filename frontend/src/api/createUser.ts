@@ -3,11 +3,10 @@ import { User } from "@/types";
 
 export const CREATE_USER = gql`
   mutation CreateUser(
-    $idToken: String!
     $firstName: String!
     $lastName: String!
   ) {
-    createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) {
+    createUser(firstName: $firstName, lastName: $lastName) {
       user {
         id
         firstName
@@ -17,13 +16,11 @@ export const CREATE_USER = gql`
         createdAt
         updatedAt
       }
-      token
     }
   }
 `;
 
 export interface CreateUserInput {
-  idToken: string;
   firstName: string;
   lastName: string;
 }
@@ -31,6 +28,5 @@ export interface CreateUserInput {
 export interface CreateUserData {
   createUser: {
     user: User;
-    token: string;
   };
 }

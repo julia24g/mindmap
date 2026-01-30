@@ -35,7 +35,6 @@ export function LoginForm({
 
     if (userCredential) {
       // Successfully signed in
-      console.log("Signed in:", userCredential.user);
       navigate("/dashboard");
     }
   };
@@ -45,7 +44,6 @@ export function LoginForm({
 
     if (userCredential) {
       // Successfully signed in with Google
-      console.log("Signed in with Google:", userCredential.user);
       navigate("/dashboard");
     }
   };

@@ -10,7 +10,7 @@ import { prisma } from "./lib/prisma";
 import { getAuth } from "firebase-admin/auth";
 
 type ContextUser = {
-  id: string; // your Postgres user.id
+  id?: string; // your Postgres user.id
   firebaseUid: string; // firebase uid
   email?: string | null;
 };
@@ -39,13 +39,13 @@ async function buildUserFromFirebaseIdToken(
     select: { id: true, firebaseUid: true, email: true },
   });
 
-  if (!user) {
-    throw new GraphQLError("User not found", {
-      extensions: { code: "UNAUTHENTICATED" },
-    });
-  }
+  if (user) return user;
 
-  return user;
+  return {
+    id: "",
+    firebaseUid,
+    email: decoded.email ?? null,
+  };
 }
 
 const server = new ApolloServer({
