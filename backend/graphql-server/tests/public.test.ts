@@ -6,6 +6,17 @@ jest.mock("../src/lib/prisma", () => {
   return { prisma: mockPrisma };
 });
 
+jest.mock("@prisma/client", () => {
+  const { mockPrisma } = jest.requireActual("../__mocks__/prisma.js");
+  return {
+    PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+    DashboardVisibility: {
+      PUBLIC: "PUBLIC",
+      PRIVATE: "PRIVATE",
+    },
+  };
+});
+
 jest.mock("neo4j-driver");
 jest.mock("firebase-admin");
 
