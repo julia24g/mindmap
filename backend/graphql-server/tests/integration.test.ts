@@ -5,13 +5,19 @@ import { Neo4jContainer } from "@testcontainers/neo4j";
 import axios from "axios";
 import nock from "nock";
 
-jest.mock("../src/auth", () => ({
-  requireUser: jest.fn(() => ({
-    id: "1",
-    firebaseUid: "test-firebase-uid",
-    email: "test@example.com",
-  })),
-}));
+const authMock = require("../__mocks__/auth");
+jest.mock("../src/auth", () => authMock);
+
+const { mockPrisma } = require("../__mocks__/prisma");
+jest.mock("@prisma/client", () => {
+  return {
+    PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+    DashboardVisibility: {
+      PUBLIC: "PUBLIC",
+      PRIVATE: "PRIVATE",
+    },
+  };
+});
 
 describe("Integration Tests", () => {
   let server: ApolloServer | undefined;

@@ -1,18 +1,30 @@
-jest.mock("../src/db/neo4j", () => ({
-  neo4jDriver: { session: jest.fn() },
-}));
+const neo4jMock = require("../__mocks__/neo4j");
+jest.mock("../src/db/neo4j", () => neo4jMock);
+
 jest.mock("../src/lib/prisma", () => {
   const { mockPrisma } = jest.requireActual("../__mocks__/prisma.js");
   return { prisma: mockPrisma };
 });
 
-jest.mock("../src/auth", () => ({ requireUser: jest.fn() }));
+const authMock = require("../__mocks__/auth");
+jest.mock("../src/auth", () => authMock);
 
 import * as firebaseAdminMock from "../__mocks__/firebase-admin";
 
 jest.mock("firebase-admin/auth", () => ({
   getAuth: firebaseAdminMock.auth,
 }));
+
+jest.mock("@prisma/client", () => {
+  const { mockPrisma } = jest.requireActual("../__mocks__/prisma.js");
+  return {
+    PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+    DashboardVisibility: {
+      PUBLIC: "PUBLIC",
+      PRIVATE: "PRIVATE",
+    },
+  };
+});
 
 import { ApolloServer } from "@apollo/server";
 import { resolvers } from "../src/graphql/resolvers";

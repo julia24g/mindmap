@@ -1,13 +1,12 @@
-jest.mock("../src/db/neo4j", () => ({
-  neo4jDriver: { session: jest.fn() },
-}));
+const neo4jMock = require("../__mocks__/neo4j");
+jest.mock("../src/db/neo4j", () => neo4jMock);
+
 jest.mock("../src/lib/prisma", () => {
-  const { mockPrisma } = jest.requireActual("../__mocks__/prisma.js");
+  const { mockPrisma } = require("../__mocks__/prisma");
   return { prisma: mockPrisma };
 });
 
 jest.mock("@prisma/client", () => {
-  const { mockPrisma } = jest.requireActual("../__mocks__/prisma.js");
   return {
     PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
     DashboardVisibility: {
