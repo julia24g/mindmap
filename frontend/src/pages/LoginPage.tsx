@@ -25,7 +25,6 @@ export function LoginForm({
   const {
     register,
     handleSubmit,
-    formState: { errors },
   } = useForm<LoginFormInputs>();
 
   const { signIn, signInWithGoogle, loading } = useAuth();

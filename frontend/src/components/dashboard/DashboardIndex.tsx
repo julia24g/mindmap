@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGetDashboards } from "@/api/getDashboards";
-import { useAuthContext } from "@/contexts/AuthContext";
-import { CreateDashboardDialog } from "@/components/dashboard/CreateDashboardDialog"; // adjust import
+import { CreateDashboardDialog } from "@/components/dashboard/CreateDashboardDialog";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -15,10 +14,8 @@ import { NetworkIcon } from "lucide-react";
 
 export default function DashboardIndexPage() {
   const navigate = useNavigate();
-  const { currentUser } = useAuthContext();
-  const userId = currentUser?.uid ?? "";
 
-  const { dashboards, loading, error, refetch } = useGetDashboards(userId);
+  const { dashboards, loading, error, refetch } = useGetDashboards();
 
   const [dialogOpen, setDialogOpen] = useState(false);
 

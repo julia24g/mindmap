@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useGetDashboards } from "@/api/getDashboards";
-import { useAuthContext } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -29,8 +28,7 @@ export default function AppSidebar({
   variant = "inset",
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
-  const { currentUser } = useAuthContext();
-  const { dashboards, refetch } = useGetDashboards(currentUser?.uid ?? "");
+  const { dashboards, refetch } = useGetDashboards();
 
   const items = dashboards.map((dashboard) => ({
     title: dashboard.name,

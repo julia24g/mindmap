@@ -28,11 +28,10 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
     setError,
   } = useForm<SignupFormInputs>();
 
-  const { signUp, signInWithGoogle, loading, error } = useAuth();
+  const { signUp, signInWithGoogle, loading } = useAuth();
   const navigate = useNavigate();
 
   const onSubmit: SubmitHandler<SignupFormInputs> = async (data) => {

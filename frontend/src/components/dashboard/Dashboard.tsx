@@ -17,7 +17,7 @@ import { useParams } from "react-router-dom";
 export default function Dashboard() {
   const { dashboardId } = useParams<{ dashboardId: string }>();
 
-  const { graph, loading, error } = useGetGraph(dashboardId ?? "");
+  const { graph } = useGetGraph(dashboardId ?? "");
 
   const {
     isSplitViewOpen,

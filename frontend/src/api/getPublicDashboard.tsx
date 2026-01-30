@@ -1,6 +1,5 @@
 import { gql, useQuery } from "@apollo/client";
 import { Dashboard } from "@/types/dashboard";
-import { useAuthContext } from "@/contexts/AuthContext";
 
 const GET_PUBLIC_DASHBOARD_QUERY = gql`
   query GetPublicDashboard($publicSlug: String!) {
@@ -27,8 +26,6 @@ export interface GetPublicDashboardData {
 }
 
 export function useGetPublicDashboard(publicSlug: string) {
-  const { currentUser } = useAuthContext();
-
   const { data, loading, error, refetch } = useQuery<
     GetPublicDashboardData,
     GetPublicDashboardInput

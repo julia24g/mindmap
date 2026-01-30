@@ -55,7 +55,6 @@ export default function ContentSidePanel({
     setValue,
     reset,
     watch,
-    formState: { isDirty },
   } = useForm<FormValues>({
     defaultValues: { title: "", type: undefined },
   });

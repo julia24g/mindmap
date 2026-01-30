@@ -64,12 +64,12 @@ describe("Integration Tests", () => {
 
       const boltUri = neo4jContainer.getBoltUri().replace(/\/$/, "");
       process.env.NEO4J_URI = boltUri;
-      process.env.NEO4J_USER = neo4jContainer.getUsername();
+      process.env.NEO4J_USERNAME = neo4jContainer.getUsername();
       process.env.NEO4J_PASSWORD = neo4jContainer.getPassword();
 
       console.log("📦 Importing schema and resolvers...");
       ({ typeDefs } = await import("../src/schema"));
-      ({ resolvers } = await import("../src/resolvers"));
+      ({ resolvers } = await import("../src/graphql/resolvers"));
       console.log("✅ Schema and resolvers imported");
 
       console.log("🔗 Importing Neo4j driver...");
