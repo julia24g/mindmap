@@ -6,8 +6,6 @@ jest.mock("../src/lib/prisma", () => {
   return { prisma: mockPrisma };
 });
 
-jest.mock("neo4j-driver");
-jest.mock("firebase-admin");
 jest.mock("../src/auth", () => ({ requireUser: jest.fn() }));
 
 import * as firebaseAdminMock from "../__mocks__/firebase-admin";
@@ -57,7 +55,11 @@ describe("GraphQL Resolvers", () => {
     jest.resetAllMocks();
 
     // Reset requireUser mock default to authenticated user
-    (requireUser as jest.Mock).mockImplementation(() => ({ id: "1" }));
+    (requireUser as jest.Mock).mockImplementation(() => ({
+      id: "1",
+      firebaseUid: "firebase-uid-default",
+      email: "testuser@example.com",
+    }));
 
     // Restore auth mock implementation after resetAllMocks
     mockAuth.mockImplementation(() => ({
@@ -75,6 +77,8 @@ describe("GraphQL Resolvers", () => {
     nock("http://localhost:8000")
       .post("/suggest-tags")
       .reply(200, { suggested_tags: MOCK_LLM_RESPONSE });
+
+    process.env.LLM_TAGGING_SERVICE_URL = "http://localhost:8000";
   });
 
   afterEach(() => {
@@ -360,14 +364,12 @@ describe("GraphQL Resolvers", () => {
       mockPrisma.user.create.mockResolvedValueOnce(mockUser);
 
       const res = await server.executeOperation({
-        query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
-          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
+        query: `mutation($firstName: String!, $lastName: String!) { 
+          createUser(firstName: $firstName, lastName: $lastName) { 
             user { id firstName lastName email firebaseUid createdAt } 
-            token 
           } 
         }`,
         variables: {
-          idToken: "valid-firebase-token",
           firstName: "Jane",
           lastName: "Smith",
         },
@@ -381,40 +383,47 @@ describe("GraphQL Resolvers", () => {
         email: "jane@example.com",
         firebaseUid: "firebase-uid-456",
       });
-      expect(data.createUser.token).toBeDefined();
     });
 
-    it("should return error when creating user with existing Firebase UID", async () => {
+    it("should return existing user when creating user with existing Firebase UID", async () => {
       // Mock Firebase token verification
       mockVerifyIdToken.mockResolvedValueOnce({
         uid: "firebase-uid-existing",
         email: "existing@example.com",
       });
 
-      // Mock user already exists by firebaseUid
-      mockPrisma.user.findUnique.mockResolvedValueOnce({
+      // Mock user already exists by firebaseUid and return full user
+      const existingUser = {
+        id: "existing-user-1",
+        firstName: "Existing",
+        lastName: "User",
+        email: "existing@example.com",
         firebaseUid: "firebase-uid-existing",
-      });
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(existingUser as any);
 
       const res = await server.executeOperation({
-        query: `mutation($idToken: String!, $firstName: String!, $lastName: String!) { 
-          createUser(idToken: $idToken, firstName: $firstName, lastName: $lastName) { 
-            user { id } 
-            token 
+        query: `mutation($firstName: String!, $lastName: String!) { 
+          createUser(firstName: $firstName, lastName: $lastName) { 
+            user { id firstName lastName email firebaseUid createdAt } 
           } 
         }`,
         variables: {
-          idToken: "valid-firebase-token",
           firstName: "John",
           lastName: "Doe",
         },
       });
 
-      const errors = (res as any).body?.singleResult?.errors;
-      expect(errors).toBeDefined();
-      expect(errors?.[0].message).toMatch(
-        "User with this Firebase UID already exists",
-      );
+      const data = (res as any).body.singleResult.data;
+      expect(data.createUser.user).toMatchObject({
+        id: "existing-user-1",
+        firstName: "Existing",
+        lastName: "User",
+        email: "existing@example.com",
+        firebaseUid: "firebase-uid-existing",
+      });
     });
   });
   // Mutation - updateContent
