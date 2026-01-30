@@ -53,7 +53,7 @@ export const contentService = {
 
     let tags: string[] = [];
     try {
-      const llmRes = await axios.post("http://localhost:8000/suggest-tags", {
+      const llmRes = await axios.post(process.env.LLM_TAGGING_SERVICE_URL + "/suggest-tags", {
         title,
         notesText: notesText || "",
       });

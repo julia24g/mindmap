@@ -2,7 +2,8 @@ import { GraphQLError } from "graphql";
 import { prisma } from "../lib/prisma";
 import { requireUser } from "../auth";
 import { makePublicSlug } from "../util/publicSlug";
-import { DashboardVisibility } from "@prisma/client";
+import pkg from "@prisma/client";
+const { DashboardVisibility } = pkg as any;
 
 export const dashboardService = {
   async getDashboard({ dashboardId }: { dashboardId: string }, ctx: any) {
