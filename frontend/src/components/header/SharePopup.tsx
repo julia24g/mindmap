@@ -30,7 +30,7 @@ export default function SharePopup({
 
   const publicUrl =
     isPublic && dashboard?.publicSlug
-      ? `https://yourapp.com/public/dashboard/${dashboard.publicSlug}`
+      ? `https://mindmap-sand.vercel.app/public/dashboard/${dashboard.publicSlug}`
       : "";
 
   const handleCopy = async () => {
