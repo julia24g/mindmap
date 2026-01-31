@@ -49,6 +49,12 @@ export const dashboardService = {
 
   async createDashboard({ name }: { name: string }, ctx: any) {
     const user = requireUser(ctx);
+    if (!user.id) {
+      throw new GraphQLError(
+        "User profile not found. Please create a user profile before creating a dashboard",
+      );
+    }
+
     const dashboard = await prisma.dashboard.create({
       data: { name, user: { connect: { id: user.id } } },
     });
