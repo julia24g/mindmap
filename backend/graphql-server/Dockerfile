@@ -1,6 +1,7 @@
 FROM node:20 AS builder
 WORKDIR /app
 COPY package*.json ./
+COPY prisma ./prisma
 RUN npm ci --include=dev
 COPY . .
 RUN npm run build
