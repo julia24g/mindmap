@@ -6,6 +6,7 @@ export const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
   },
   dashboard: {
     findUnique: jest.fn(),
@@ -13,6 +14,7 @@ export const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
   },
   content: {
     findUnique: jest.fn(),
@@ -20,8 +22,11 @@ export const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
     aggregate: jest.fn(),
   },
+  $disconnect: jest.fn().mockResolvedValue(undefined),
+  $connect: jest.fn().mockResolvedValue(undefined),
 };
 
 export const prisma = mockPrisma;

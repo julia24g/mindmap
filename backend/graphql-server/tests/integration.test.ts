@@ -8,17 +8,6 @@ import nock from "nock";
 const authMock = require("../__mocks__/auth");
 jest.mock("../src/auth", () => authMock);
 
-const { mockPrisma } = require("../__mocks__/prisma");
-jest.mock("@prisma/client", () => {
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
-    DashboardVisibility: {
-      PUBLIC: "PUBLIC",
-      PRIVATE: "PRIVATE",
-    },
-  };
-});
-
 describe("Integration Tests", () => {
   let server: ApolloServer | undefined;
   let url: string;
@@ -56,17 +45,14 @@ describe("Integration Tests", () => {
       process.env.NEO4J_USERNAME = neo4jContainer.getUsername();
       process.env.NEO4J_PASSWORD = neo4jContainer.getPassword();
 
-      // Ensure LLM service URL points to the local mock used by tests
       process.env.LLM_TAGGING_SERVICE_URL = "http://localhost:8000";
 
       ({ typeDefs } = await import("../src/schema"));
       ({ resolvers } = await import("../src/graphql/resolvers"));
       ({ neo4jDriver } = await import("../src/db/neo4j"));
 
-      // Import and initialize Prisma Client
       ({ prisma } = await import("../src/lib/prisma"));
 
-      // Run Prisma migrations
       const { execSync } = await import("child_process");
       try {
         execSync("npx prisma migrate deploy", {
