@@ -1,66 +1,49 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, validator
-from typing import List, Optional
+from pydantic import BaseModel, field_validator
+from typing import List, Optional, Dict, Any
 import os
+import json
+import logging
 from dotenv import load_dotenv
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
-from huggingface_hub import InferenceClient
 from openai import OpenAI
 
-# Initialize FastAPI
 app = FastAPI()
 load_dotenv()
 
-model_name = "meta-llama/Llama-3.2-3B-Instruct"
-
-HF_TOKEN = os.getenv("HF_TOKEN")
-if not HF_TOKEN:
-    raise RuntimeError("HF_TOKEN not found in environment. Please set it as an environment variable or in .env file")
-
-# Initialize Hugging Face Inference Client
-ai_client = OpenAI(
-    base_url="https://router.huggingface.co/v1",
-    api_key=os.environ["HF_TOKEN"],
+# Logging setup
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+logger = logging.getLogger("llm_tagging_service")
 
-def tagger(prompt: str, max_new_tokens: int = 20) -> str:
-    """Call Hugging Face Inference API for text generation using chat completions.
+# -----------------------------
+# OpenAI setup
+# -----------------------------
+openai_client = OpenAI()
 
-    Returns the generated text as a string.
-    """
-    completion = ai_client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        max_tokens=max_new_tokens,
-    )
-    return completion.choices[0].message.content
+TAVILY_REMOTE_MCP_URL = os.getenv("TAVILY_REMOTE_MCP_URL")
+if not TAVILY_REMOTE_MCP_URL:
+    logger.error("Missing env var TAVILY_REMOTE_MCP_URL")
+    raise RuntimeError("Missing env var TAVILY_REMOTE_MCP_URL")
 
+# -----------------------------
 # GraphQL setup
+# -----------------------------
 GRAPHQL_ENDPOINT = os.getenv("GRAPHQL_ENDPOINT")
+if not GRAPHQL_ENDPOINT:
+    logger.error("Missing env var GRAPHQL_ENDPOINT")
+    raise RuntimeError("Missing env var GRAPHQL_ENDPOINT")
 
 transport = RequestsHTTPTransport(url=GRAPHQL_ENDPOINT, verify=True, retries=3)
 graphql_client = Client(transport=transport, fetch_schema_from_transport=False)
 
-# Defines expected input structure
-class TagInput(BaseModel):
-    title: str
-    notes: Optional[str] = ""
-    
-    @validator('title')
-    def validate_title(cls, v):
-        if not v or v.strip() == "":
-            raise ValueError("Title cannot be empty")
-        return v
 
-# Call to GraphQL to fetch existing tags
-def fetch_tags_from_graphql(limit=500) -> List[str]:
-    # GraphQL query
+def fetch_tags_from_graphql(limit: int = 500) -> List[str]:
+    logger.info("fetch_tags_from_graphql called", extra={"limit": limit})
     query = gql(
         """
         query GetTags($limit: Int) {
@@ -68,50 +51,238 @@ def fetch_tags_from_graphql(limit=500) -> List[str]:
         }
         """
     )
-    result = graphql_client.execute(query, variable_values={"limit": int(limit)}) # Sends query to GraphQL server
-    return result["allTags"]
+    result = graphql_client.execute(query, variable_values={"limit": int(limit)})
+    tags = result.get("allTags", []) or []
+    logger.info("Fetched tags from GraphQL", extra={"count": len(tags)})
+    return tags
 
-def suggest_tags(text: str, existing_tags: List[str]) -> List[str]:
-    existing_tags_text = f"And this list of existing tags:\n{', '.join(existing_tags)}\n\n" if existing_tags else ""
-    prompt = (
-        f"Given this reflection:\n\n{text}\n\n"
-        f"{existing_tags_text}"
-        "Suggest 1 to 5 relevant tags for the reflection. "
-        f"{'Prefer tags from the list if they fit well. If none apply, create new concise lowercase tags. ' if existing_tags else 'Create new concise lowercase tags. '}"
-            "Tagging rules:\n"
-        "- Tags must represent meaningful topics, themes, or concepts expressed by the reflection.\n"
-        "- Tags should be interpretive but grounded in the content.\n"
-        "- Prefer reusing tags from the existing list if they fit well.\n\n"
 
-        "Strict constraints (do NOT violate these):\n"
-        "- Do NOT create tags derived from the reflection title or its wording.\n"
-        "- Do NOT include content-type tags (e.g., podcast, book, film, article).\n"
-        "- Do NOT use vague or placeholder tags such as general, general-interest, misc, other, or similar.\n"
-        "- Do NOT force tags; return fewer tags rather than adding generic ones.\n\n"
+# -----------------------------
+# API input model
+# -----------------------------
+class TagInput(BaseModel):
+    title: str
+    notes: Optional[str] = ""
 
-        "Additional guidance:\n"
-        "- It is acceptable to return only 1 or 2 strong tags if those best capture the reflection.\n"
-        "- Avoid redundant or highly overlapping tags.\n"
-        "- All tags must be concise, lowercase, and semantically meaningful.\n\n"
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
+        if not v or v.strip() == "":
+            raise ValueError("Title cannot be empty")
+        return v
 
-        "IMPORTANT: Output ONLY the tags as a comma-separated list with NO explanations, NO introductory text, and NO additional commentary. Just the tags.\n"
+
+# -----------------------------
+# OpenAI tagging (single call)
+# -----------------------------
+SYSTEM_PROMPT = """
+You are an entity-aware tagging agent for personal notes.
+
+Your task:
+1) Parse the note text and extract any entities that require external lookup
+   (books, movies, TV shows, articles, authors, directors, publications).
+2) For each entity:
+   - If sufficient metadata is already known with high confidence, do NOT search.
+   - Otherwise, call the Tavily search tool to resolve the entity.
+3) Use Tavily results to infer:
+   - canonical title
+   - type (book, movie, article, etc.)
+   - year (if applicable)
+   - creator (author, director)
+   - genres/topics
+   - canonical reference URL (prefer Wikipedia, IMDb, Goodreads).
+4) Using the resolved metadata AND the note text, generate normalized tags.
+
+Rules:
+- Use Tavily search only when metadata is missing or ambiguous.
+- Use at most ONE Tavily search call per entity.
+- Prefer trusted sources: wikipedia.org, imdb.com, goodreads.com.
+- Do NOT invent facts. If uncertain, lower confidence.
+- Return ONLY valid JSON matching the output schema.
+"""
+
+# Output contract: stable JSON so you don't parse "comma lists" anymore
+OUTPUT_SCHEMA_INSTRUCTIONS = """
+Return a single JSON object with this exact structure:
+
+{
+  "entities": [
+    {
+      "inputText": string,
+      "kind": "book" | "movie" | "article" | "tv" | "person" | "other",
+      "resolved": {
+        "canonicalTitle": string,
+        "year": number | null,
+        "creator": string | null,
+        "genres": string[],
+        "topics": string[],
+        "referenceUrl": string | null
+      },
+      "confidence": number
+    }
+  ],
+  "suggestedTags": string[]
+}
+
+Tag constraints (do NOT violate):
+- Suggest 1 to 5 tags.
+- Tags must represent meaningful topics/themes/concepts expressed by the note.
+- Prefer tags from the provided existingTags list if they fit well.
+- If none apply, create new concise lowercase tags.
+- DO NOT create tags derived from the note title or its wording.
+- DO NOT include content-type tags (e.g., podcast, book, film, article).
+- DO NOT use vague tags: general, general-interest, misc, other, etc.
+- Avoid redundant/highly overlapping tags.
+- Output ONLY JSON (no markdown, no commentary).
+"""
+
+
+def _safe_parse_json(text: str) -> Dict[str, Any]:
+    """
+    Best-effort JSON parse. If the model ever returns extra text,
+    this attempts to extract the first top-level JSON object.
+    """
+    text = text.strip()
+
+    # Fast path
+    try:
+        return json.loads(text)
+    except Exception:
+        logger.debug("Fast JSON parse failed, attempting extraction")
+
+    # Try to extract first {...} block
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start : end + 1])
+        except Exception:
+            logger.debug("Extraction-based JSON parse failed")
+
+    logger.error("Model did not return valid JSON")
+    raise ValueError("Model did not return valid JSON.")
+
+
+def suggest_tags_with_openai(note_text: str, existing_tags: List[str]) -> Dict[str, Any]:
+    """
+    One OpenAI call:
+    - extract entities
+    - (optionally) call Tavily MCP search
+    - return entities + suggestedTags JSON
+    """
+    user_prompt = f"""
+Note text:
+\"\"\"
+{note_text}
+\"\"\"
+
+existingTags:
+{existing_tags}
+"""
+
+    logger.info(
+        "Calling OpenAI to suggest tags",
+        extra={
+            "note_length": len(note_text),
+            "existing_tags_count": len(existing_tags),
+        },
     )
-    result = tagger(prompt, max_new_tokens=50)
-    # Extract tags from the response
-    if "Tags:" in result:
-        lines = result.split("Tags:")[-1].strip().split(",")
-    else:
-        # Fallback: try to extract comma-separated values from the response
-        lines = result.strip().split(",")
-    return [tag.strip() for tag in lines if tag.strip()]
 
+    resp = openai_client.responses.create(
+        model="gpt-5-nano",
+        tools=[
+            {
+                "type": "mcp",
+                "server_label": "tavily",
+                "server_url": TAVILY_REMOTE_MCP_URL,
+                "require_approval": "never",
+            }
+        ],
+        input=[
+            {"role": "system", "content": [{"type": "input_text", "text": SYSTEM_PROMPT}]},
+            {
+                "role": "system",
+                "content": [{"type": "input_text", "text": OUTPUT_SCHEMA_INSTRUCTIONS}],
+            },
+            {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
+        ],
+    )
+
+    # Responses API can return multiple output items; we want the final text
+    # Commonly: resp.output_text is available; fallback to scanning output.
+    output_text = getattr(resp, "output_text", None)
+    if not output_text:
+        # Fallback: find any text content in resp.output
+        chunks = []
+        for item in getattr(resp, "output", []) or []:
+            for c in getattr(item, "content", []) or []:
+                if c.get("type") == "output_text" and "text" in c:
+                    chunks.append(c["text"])
+        output_text = "\n".join(chunks).strip()
+
+    try:
+        parsed = _safe_parse_json(output_text)
+    except Exception as e:
+        logger.exception("Failed to parse OpenAI output as JSON")
+        raise
+
+    # Normalize suggestedTags
+    tags = parsed.get("suggestedTags", []) or []
+    if not isinstance(tags, list):
+        tags = []
+
+    # Clean tags: lowercase + trim + dedupe while preserving order
+    seen = set()
+    cleaned = []
+    for t in tags:
+        if not isinstance(t, str):
+            continue
+        tt = t.strip().lower()
+        if not tt:
+            continue
+        if tt in seen:
+            continue
+        seen.add(tt)
+        cleaned.append(tt)
+
+    parsed["suggestedTags"] = cleaned
+    logger.info(
+        "OpenAI returned suggested tags",
+        extra={"suggested_count": len(cleaned), "suggested": cleaned[:5]},
+    )
+    return parsed
+
+
+# -----------------------------
+# Endpoint
+# -----------------------------
 @app.post("/suggest-tags")
 async def suggest_tags_endpoint(event: TagInput):
     try:
         notes = event.notes or ""
-        context_text = f"{event.title}. {notes}"
-        existing_tags = fetch_tags_from_graphql()
-        suggestions = suggest_tags(context_text, existing_tags)
-        return {"suggested_tags": suggestions}
+
+        # Avoid logging full note content; log lengths and title presence
+        logger.info(
+            "Received suggest-tags request",
+            extra={"title": event.title, "notes_length": len(notes)},
+        )
+
+        note_text = f"{event.title}\n\n{notes}".strip()
+
+        existing_tags = fetch_tags_from_graphql(limit=500)
+
+        result = suggest_tags_with_openai(note_text, existing_tags)
+
+        suggested = result.get("suggestedTags", [])
+        logger.info(
+            "Returning suggested tags",
+            extra={"count": len(suggested), "sample": suggested[:5]},
+        )
+
+        return {
+            "suggested_tags": suggested,
+            "entities": result.get("entities", []),
+        }
     except Exception as e:
+        logger.exception("Unhandled error in suggest-tags endpoint")
         raise HTTPException(status_code=500, detail=str(e))
