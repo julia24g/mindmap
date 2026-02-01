@@ -133,20 +133,6 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                 Must be at least 8 characters long.
               </FieldDescription>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="confirm-password">
-                Confirm Password
-              </FieldLabel>
-              <Input
-                id="confirm-password"
-                type="password"
-                {...register("confirmPassword", {
-                  required: "Please confirm your password",
-                })}
-                disabled={loading}
-              />
-              <FieldDescription>Please confirm your password.</FieldDescription>
-            </Field>
             <FieldGroup>
               <Field>
                 <Button type="submit" disabled={loading}>

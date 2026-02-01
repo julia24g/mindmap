@@ -1,4 +1,5 @@
 import { useNavigate, Link } from "react-router-dom";
+import React, { useState } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,27 +26,36 @@ export function LoginForm({
   const {
     register,
     handleSubmit,
+    formState: { errors },
   } = useForm<LoginFormInputs>();
 
   const { signIn, signInWithGoogle, loading } = useAuth();
+  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
+    setAuthError(null);
     const userCredential = await signIn(data.email, data.password);
 
     if (userCredential) {
-      // Successfully signed in
       navigate("/dashboard");
+      return;
     }
+
+      const message = "Unable to login. Please check your credentials and try again.";
+      setAuthError(message);
   };
 
   const handleGoogleSignIn = async () => {
+    setAuthError(null);
     const userCredential = await signInWithGoogle();
 
     if (userCredential) {
-      // Successfully signed in with Google
       navigate("/dashboard");
+      return;
     }
+
+      setAuthError("Unable to login. Please check your credentials and try again.");
   };
 
   return (
@@ -59,6 +69,11 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)}>
+            {authError && (
+              <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800">
+                {authError}
+              </div>
+            )}
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
@@ -75,6 +90,9 @@ export function LoginForm({
                   })}
                   disabled={loading}
                 />
+                {errors.email && (
+                  <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
@@ -94,6 +112,9 @@ export function LoginForm({
                   })}
                   disabled={loading}
                 />
+                {errors.password && (
+                  <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                )}
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logging in..." : "Login"}
