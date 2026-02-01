@@ -1,10 +1,12 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { toReactFlowFormat } from "@/util/graphTransform";
 import { useGetGraph } from "@/api/getGraph";
 import { NetworkIcon } from "lucide-react";
 import Layout from "@/components/graph/Layout";
-import ContentSidePanel from "@/components/content-panel/ContentSidePanel";
+import { DialogDemo } from "@/components/content-panel/Dialog";
+import { useContentDialog } from "@/contexts/ContentDialogContext";
+import { useRef } from "react";
 import {
   Empty,
   EmptyDescription,
@@ -15,23 +17,18 @@ import {
 import { useParams } from "react-router-dom";
 
 export default function Dashboard() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { open, mode, contentId, setOpen } = useContentDialog();
   const { dashboardId } = useParams<{ dashboardId: string }>();
 
   const { graph } = useGetGraph(dashboardId ?? "");
 
-  const {
-    isSplitViewOpen,
-    setIsSplitViewOpen,
-    selectedContentId,
-    setSelectedContentId,
-    isOwner,
-  } = useOutletContext<{
-    isSplitViewOpen: boolean;
-    setIsSplitViewOpen: (open: boolean) => void;
-    selectedContentId: string | null;
-    setSelectedContentId: (id: string | null) => void;
-    isOwner?: boolean;
-  }>();
+  const { setIsSplitViewOpen, setSelectedContentId, isOwner } =
+    useOutletContext<{
+      setIsSplitViewOpen: (open: boolean) => void;
+      setSelectedContentId: (id: string | null) => void;
+      isOwner?: boolean;
+    }>();
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     if (!graph) {
@@ -51,7 +48,10 @@ export default function Dashboard() {
   const hasNoData = initialNodes.length === 0 && initialEdges.length === 0;
 
   return (
-    <div className="relative flex-1 w-full flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative flex-1 w-full flex flex-col h-full min-h-0 min-w-0 overflow-hidden rounded-b-lg"
+    >
       {hasNoData ? (
         <div className="flex-1">
           <Empty>
@@ -79,11 +79,13 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      <ContentSidePanel
-        open={isSplitViewOpen}
-        contentId={selectedContentId}
-        onClose={() => setIsSplitViewOpen(false)}
-        mode={selectedContentId ? "view" : "create"}
+      {/* Render the dialog inside the dashboard so it only covers this area */}
+      <DialogDemo
+        mode={mode}
+        contentId={contentId}
+        open={open}
+        onOpenChange={setOpen}
+        portalContainer={containerRef.current}
       />
     </div>
   );

@@ -3,6 +3,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Lock } from "lucide-react";
+import { useContext } from "react";
+import ContentDialogContext from "@/contexts/ContentDialogContext";
 import SharePopup from "./SharePopup";
 import { Dashboard } from "@/types/dashboard";
 import { formatDate, formatFullDate } from "@/util/dateFormat";
@@ -16,6 +18,7 @@ export function SiteHeader({
   onAddContent?: () => void;
   isOwner?: boolean;
 }) {
+  const ctx = useContext(ContentDialogContext);
   const lastEditedShort = dashboard?.updatedAt
     ? formatDate(dashboard.updatedAt)
     : "Unknown";
@@ -67,6 +70,7 @@ export function SiteHeader({
               if (onAddContent) {
                 onAddContent();
               }
+              if (ctx && ctx.openCreateDialog) ctx.openCreateDialog();
             }}
           >
             Add Content <Plus />
